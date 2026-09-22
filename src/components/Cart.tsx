@@ -332,7 +332,7 @@ _Pedido generado desde la tienda digital Morrales y Algo Más_`;
                     </label>
                     <input
                       type="text"
-                      placeholder="Ej: Cra 43A # 18 Sur - 20, Envigado"
+                      placeholder="Ej: Cra 5 # 10-25, Jamundí"
                       value={deliveryAddress}
                       onChange={(e) => setDeliveryAddress(e.target.value)}
                       className="w-full p-2.5 rounded-xl bg-cuero-marfil border border-cuero-arena text-cuero-espresso font-medium focus:ring-2 focus:ring-brand-teal/50"

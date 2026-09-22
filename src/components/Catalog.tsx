@@ -49,7 +49,11 @@ export const Catalog: React.FC<CatalogProps> = ({
   const [sortBy, setSortBy] = useState<'featured' | 'price-asc' | 'price-desc' | 'name-asc'>('featured');
   const [selectedMaterial, setSelectedMaterial] = useState<string>('all');
   const [onlyHandmade, setOnlyHandmade] = useState<boolean>(false);
-  const [maxPriceFilter, setMaxPriceFilter] = useState<number>(450000);
+  // null = el cliente no ha tocado el slider todavía: el tope efectivo sigue al
+  // catálogo real (catalogMaxPrice). Antes era un número fijo ($450.000) y
+  // cualquier producto más caro quedaba invisible en la tienda sin que nadie
+  // tocara ningún filtro.
+  const [maxPriceFilter, setMaxPriceFilter] = useState<number | null>(null);
 
   // Materiales únicos disponibles
   const availableMaterials = useMemo(() => {
@@ -59,6 +63,15 @@ export const Catalog: React.FC<CatalogProps> = ({
     });
     return Array.from(materials);
   }, [products]);
+
+  // Tope del slider de precio: el mayor precio real del catálogo (con margen),
+  // nunca menos de $450.000 para que el slider no se vea vacío con pocos productos.
+  const catalogMaxPrice = useMemo(() => {
+    const highest = products.reduce((max, p) => Math.max(max, parseCOP(getEffectivePrice(p))), 0);
+    return Math.max(450000, Math.ceil((highest + 10000) / 50000) * 50000);
+  }, [products]);
+
+  const effectiveMaxPriceFilter = maxPriceFilter ?? catalogMaxPrice;
 
   // Filtrado y ordenamiento computado
   const filteredProducts = useMemo(() => {
@@ -95,7 +108,7 @@ export const Catalog: React.FC<CatalogProps> = ({
 
       // Filtro por precio máximo
       const effectivePrice = parseCOP(getEffectivePrice(p));
-      if (effectivePrice > maxPriceFilter) {
+      if (effectivePrice > effectiveMaxPriceFilter) {
         return false;
       }
 
@@ -109,7 +122,7 @@ export const Catalog: React.FC<CatalogProps> = ({
       if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
       return 0; // featured
     });
-  }, [products, searchQuery, selectedCategory, activePromoFilter, onlyHandmade, selectedMaterial, maxPriceFilter, sortBy]);
+  }, [products, searchQuery, selectedCategory, activePromoFilter, onlyHandmade, selectedMaterial, effectiveMaxPriceFilter, sortBy]);
 
   // Manejo de apertura de modal
   const handleOpenProduct = (product: Product) => {
@@ -206,7 +219,7 @@ export const Catalog: React.FC<CatalogProps> = ({
           >
             <SlidersHorizontal className="w-4 h-4 text-cuero-cognac" />
             <span>Filtros Avanzados</span>
-            {(onlyHandmade || selectedMaterial !== 'all' || maxPriceFilter < 450000) && (
+            {(onlyHandmade || selectedMaterial !== 'all' || maxPriceFilter !== null) && (
               <span className="w-2 h-2 rounded-full bg-brand-red" />
             )}
           </button>
@@ -262,14 +275,14 @@ export const Catalog: React.FC<CatalogProps> = ({
             <div className="space-y-1.5">
               <div className="flex justify-between items-center text-xs">
                 <label className="font-bold text-cuero-espresso">Precio Máximo</label>
-                <span className="font-extrabold text-cuero-cognac">{formatCOP(maxPriceFilter)}</span>
+                <span className="font-extrabold text-cuero-cognac">{formatCOP(effectiveMaxPriceFilter)}</span>
               </div>
               <input
                 type="range"
                 min="50000"
-                max="450000"
+                max={catalogMaxPrice}
                 step="10000"
-                value={maxPriceFilter}
+                value={effectiveMaxPriceFilter}
                 onChange={(e) => setMaxPriceFilter(Number(e.target.value))}
                 className="w-full accent-cuero-cognac cursor-pointer"
               />
@@ -281,7 +294,7 @@ export const Catalog: React.FC<CatalogProps> = ({
                 onClick={() => {
                   setSelectedMaterial('all');
                   setOnlyHandmade(false);
-                  setMaxPriceFilter(450000);
+                  setMaxPriceFilter(null);
                   setSortBy('featured');
                 }}
                 className="w-full py-2 px-3 rounded-xl bg-cuero-arena/30 hover:bg-cuero-arena/50 text-cuero-espresso font-bold text-xs transition-colors"
@@ -310,7 +323,7 @@ export const Catalog: React.FC<CatalogProps> = ({
               onSelectCategory('all');
               setSelectedMaterial('all');
               setOnlyHandmade(false);
-              setMaxPriceFilter(450000);
+              setMaxPriceFilter(null);
             }}
             className="px-6 py-2.5 bg-cuero-espresso text-white font-bold text-xs rounded-xl hover:bg-cuero-cognac transition-colors"
           >
