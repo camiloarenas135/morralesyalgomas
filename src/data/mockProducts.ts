@@ -29,7 +29,7 @@ export const MOCK_BANNERS: PromoBanner[] = [
     id: 'banner-2',
     title: 'Bolsos Tote & Maletines Ejecutivos',
     subtitle: 'Elegancia intemporal para tu día a día, reuniones y viajes.',
-    discountBadge: 'ENVÍO GRATIS NACIONAL',
+    discountBadge: 'NUEVA TEMPORADA',
     imageUrl: 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&w=1200&q=80',
     ctaText: 'Ver Colección Ejecutiva',
     categoryFilter: 'Bolsos',

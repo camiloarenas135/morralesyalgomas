@@ -228,7 +228,6 @@ export function App() {
         onSearchChange={setSearchQuery}
         cartItemCount={totalCartCount}
         onOpenCart={() => setIsCartOpen(true)}
-        onNavigateAdmin={() => navigate('/admin')}
         onScrollToSection={handleScrollToSection}
       />
 
@@ -271,7 +270,7 @@ export function App() {
       />
 
       {/* Footer */}
-      <Footer onNavigateAdmin={() => navigate('/admin')} />
+      <Footer />
 
     </div>
   );

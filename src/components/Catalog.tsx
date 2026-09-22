@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Filter, SlidersHorizontal, ArrowUpDown, Sparkles, Check, 
-  ShoppingBag, Shield, HandMetal, Truck, X, ChevronRight, 
+  Filter, SlidersHorizontal, ArrowUpDown, Sparkles, Check,
+  ShoppingBag, Shield, HandMetal, X, ChevronRight,
   Layers, Ruler, Weight, ShieldAlert, Heart, Share2, Info, Flame, MessageCircle
 } from 'lucide-react';
 import { Product, ProductVariant, Category } from '../types';
@@ -313,8 +313,6 @@ export const Catalog: React.FC<CatalogProps> = ({
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {filteredProducts.map((product) => {
             const discountPct = calculateDiscountPercent(product.price, product.promo_price);
-            const numPrice = product.promo_price ? parseCOP(product.promo_price) : parseCOP(product.price);
-            const isFreeShipping = numPrice >= 150000;
 
             return (
               <div
@@ -336,12 +334,6 @@ export const Catalog: React.FC<CatalogProps> = ({
                     {product.handmade && (
                       <span className="bg-cuero-espresso/90 text-accent-gold text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded shadow backdrop-blur-sm">
                         Hecho a Mano
-                      </span>
-                    )}
-                    {isFreeShipping && (
-                      <span className="bg-accent-olive/90 text-white text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded shadow backdrop-blur-sm flex items-center gap-1">
-                        <Truck className="w-2.5 h-2.5" />
-                        Envío Gratis
                       </span>
                     )}
                   </div>

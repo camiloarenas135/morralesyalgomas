@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   X, Trash2, ShoppingBag, ArrowRight, MessageCircle, 
-  ShieldCheck, Truck, MapPin, User, Phone, CreditCard, CheckCircle2, AlertCircle 
+  ShieldCheck, MapPin, User, Phone, CreditCard, CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { OrderCartItem, Order } from '../types';
 import { formatCOP, parseCOP } from '../utils/promoHelpers';
@@ -47,11 +47,7 @@ export const Cart: React.FC<CartProps> = ({
     return acc + (parseCOP(item.price) * item.quantity);
   }, 0);
 
-  const freeShippingThreshold = 150000;
-  const isFreeShipping = subtotal >= freeShippingThreshold;
-  const shippingCost = isFreeShipping || subtotal === 0 ? 0 : 12000;
-  const total = subtotal + shippingCost;
-  const progressToFreeShipping = Math.min(100, (subtotal / freeShippingThreshold) * 100);
+  const total = subtotal;
 
   // Generador de Mensaje WhatsApp
   const handleGenerateWhatsAppCheckout = () => {
@@ -96,8 +92,6 @@ export const Cart: React.FC<CartProps> = ({
       itemsText += `${index + 1}️⃣ *${item.name}*\n${variantText}   ↳ Cantidad: ${item.quantity}\n   ↳ Precio c/u: ${item.price}\n\n`;
     });
 
-    const shippingText = isFreeShipping ? 'GRATIS' : formatCOP(shippingCost);
-
     // El ID se genera antes para incluirlo en el mensaje: si el registro en la base
     // de datos fallara, el negocio igual puede conciliar el pedido por WhatsApp.
     const orderId = StoreManager.generateOrderId();
@@ -109,9 +103,8 @@ export const Cart: React.FC<CartProps> = ({
 📦 *Artículos Seleccionados:*
 
 ${itemsText}━━━━━━━━━━━━━━━━━━━━━━━
-💰 *Subtotal:* ${formatCOP(subtotal)} COP
-🚚 *Envío:* ${shippingText}
 💳 *TOTAL A PAGAR: ${formatCOP(total)} COP*
+🚚 *Envío:* a coordinar por este medio
 
 👤 *Cliente:* ${cleanName}
 📞 *Teléfono:* ${cleanPhone}
@@ -188,31 +181,6 @@ _Pedido generado desde la tienda digital Morrales y Algo Más_`;
             </button>
           </div>
 
-          {/* Free Shipping Progress Indicator */}
-          {items.length > 0 && step !== 'success' && (
-            <div className="bg-cuero-espresso/95 text-cuero-marfil px-5 py-2.5 text-xs space-y-1.5 border-b border-cuero-cognac/30">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="flex items-center gap-1.5 font-bold">
-                  <Truck className="w-3.5 h-3.5 text-brand-teal" />
-                  {isFreeShipping ? (
-                    <span className="text-accent-olive font-extrabold flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>¡Calificas para Envío GRATIS nacional!</span>
-                    </span>
-                  ) : (
-                    <span>Faltan <strong>{formatCOP(freeShippingThreshold - subtotal)}</strong> para Envío Gratis</span>
-                  )}
-                </span>
-                <span className="font-mono text-accent-gold font-bold">{Math.round(progressToFreeShipping)}%</span>
-              </div>
-              <div className="w-full h-1.5 bg-cuero-marfil/20 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full transition-all duration-500 rounded-full ${isFreeShipping ? 'bg-accent-olive' : 'bg-brand-teal'}`}
-                  style={{ width: `${progressToFreeShipping}%` }}
-                />
-              </div>
-            </div>
-          )}
 
           {/* Body Content according to Step */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
@@ -470,24 +438,13 @@ _Pedido generado desde la tienda digital Morrales y Algo Más_`;
               
               {/* Financial summary */}
               <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between text-cuero-cognac">
-                  <span>Subtotal:</span>
-                  <span className="font-bold text-cuero-espresso">{formatCOP(subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-cuero-cognac">
-                  <span>Costo de Envío:</span>
-                  <span>
-                    {isFreeShipping ? (
-                      <span className="font-bold text-accent-olive uppercase text-[10px]">Gratis</span>
-                    ) : (
-                      <span className="font-bold text-cuero-espresso">{formatCOP(shippingCost)}</span>
-                    )}
-                  </span>
-                </div>
-                <div className="flex justify-between text-base font-black text-cuero-espresso pt-2 border-t border-cuero-arena/40">
+                <div className="flex justify-between text-base font-black text-cuero-espresso">
                   <span>Total a Pagar:</span>
                   <span className="text-brand-red">{formatCOP(total)} COP</span>
                 </div>
+                <p className="text-[11px] text-cuero-cognac">
+                  El costo de envío se coordina y confirma directamente por WhatsApp.
+                </p>
               </div>
 
               {/* Action Buttons */}

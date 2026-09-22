@@ -5,11 +5,7 @@ import {
   Heart, Phone, Mail, MapPin, ExternalLink 
 } from 'lucide-react';
 
-interface FooterProps {
-  onNavigateAdmin: () => void;
-}
-
-export const Footer: React.FC<FooterProps> = ({ onNavigateAdmin }) => {
+export const Footer: React.FC = () => {
   return (
     <footer className="w-full bg-cuero-espresso text-cuero-marfil border-t-4 border-cuero-cognac">
       
@@ -39,10 +35,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateAdmin }) => {
             </div>
             <div className="space-y-1">
               <h4 className="font-heading font-bold text-sm text-cuero-marfil">
-                Envíos a Toda Colombia
+                Envíos a Jamundí, Cali y Colombia
               </h4>
               <p className="text-xs text-cuero-arena/80 leading-relaxed">
-                Despachos asegurados a ciudades principales en 2 a 4 días hábiles con guía de rastreo.
+                Entregas locales en Jamundí y Cali (según la zona) y despachos a nivel nacional. El costo y tiempo se cotizan por WhatsApp según tu destino.
               </p>
             </div>
           </div>
@@ -148,14 +144,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigateAdmin }) => {
               <li><span className="hover:text-white cursor-pointer transition-colors">Cambios (5 días hábiles)</span></li>
               <li><span className="hover:text-white cursor-pointer transition-colors">Tratamiento Datos (Ley 1581/2012)</span></li>
               <li><span className="hover:text-white cursor-pointer transition-colors">Términos y Condiciones</span></li>
-              <li>
-                <button 
-                  onClick={onNavigateAdmin} 
-                  className="text-cuero-caramelo hover:text-brand-teal transition-colors font-bold underline text-left"
-                >
-                  Acceso Administrador
-                </button>
-              </li>
             </ul>
           </div>
 

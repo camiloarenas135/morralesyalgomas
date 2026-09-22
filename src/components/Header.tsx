@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { Search, ShoppingBag, ShieldCheck, Truck, Shield, Lock, Menu, X, Sparkles, Phone } from 'lucide-react';
+import { Search, ShoppingBag, ShieldCheck, Truck, Shield, Menu, X, Sparkles, Phone } from 'lucide-react';
 
 interface HeaderProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   cartItemCount: number;
   onOpenCart: () => void;
-  onNavigateAdmin: () => void;
   onScrollToSection: (sectionId: string) => void;
 }
 
@@ -15,7 +14,6 @@ export const Header: React.FC<HeaderProps> = ({
   onSearchChange,
   cartItemCount,
   onOpenCart,
-  onNavigateAdmin,
   onScrollToSection
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -27,12 +25,9 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="bg-cuero-espresso text-cuero-marfil text-xs py-1.5 px-4">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1 sm:gap-4 text-center sm:text-left">
           <div className="flex items-center gap-2 justify-center">
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-red text-white uppercase tracking-wider animate-pulse">
-              Promo Activa
-            </span>
             <span className="font-medium text-cuero-arena flex items-center gap-1.5">
               <Truck className="w-3.5 h-3.5 text-accent-gold shrink-0" />
-              <span>Envío <strong>GRATIS</strong> nacional por compras superiores a $150.000 COP</span>
+              <span>Envíos a Jamundí, Cali y todo el país — cotiza por WhatsApp</span>
             </span>
           </div>
           <div className="hidden md:flex items-center gap-5 text-xs text-cuero-arena/90 font-medium">
@@ -125,16 +120,6 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </nav>
 
-            {/* Admin Access Button */}
-            <button
-              onClick={onNavigateAdmin}
-              title="Acceso Administrativo"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-cuero-espresso bg-cuero-marfil hover:bg-cuero-arena/40 border border-cuero-arena rounded-lg transition-all hover:shadow-sm active:scale-95"
-            >
-              <Lock className="w-3.5 h-3.5 text-cuero-cognac" />
-              <span>Admin</span>
-            </button>
-
             {/* Cart Trigger Button */}
             <button
               onClick={onOpenCart}
@@ -209,13 +194,6 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <ShieldCheck className="w-4 h-4 text-accent-gold" />
                 Garantía 6 Meses
-              </button>
-              <button
-                onClick={() => { onNavigateAdmin(); setIsMobileMenuOpen(false); }}
-                className="flex items-center justify-center gap-2 p-3 bg-cuero-espresso text-cuero-marfil rounded-xl hover:bg-cuero-cognac transition-colors"
-              >
-                <Lock className="w-4 h-4 text-brand-teal" />
-                Panel Admin
               </button>
             </div>
           </div>
