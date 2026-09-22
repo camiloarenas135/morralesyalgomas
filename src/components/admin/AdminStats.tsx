@@ -47,27 +47,39 @@ function resolveRange(preset: RangePreset, customFrom: string, customTo: string)
     return { start, end, label: 'Últimos 30 días' };
   }
 
-  // Rango personalizado: si falta un extremo, se abre hacia atrás/hasta hoy.
-  const start = customFrom ? new Date(`${customFrom}T00:00:00`) : new Date(0);
+  // Rango personalizado: si falta un extremo, se completa con una ventana de
+  // 30 días en vez de dejarlo abierto hasta 1970 (eso desbordaba el gráfico
+  // con miles de barras vacías apenas se entraba a este modo).
   const customEnd = customTo ? new Date(`${customTo}T23:59:59`) : end;
+  const defaultStart = new Date(customEnd);
+  defaultStart.setDate(defaultStart.getDate() - 29);
+  defaultStart.setHours(0, 0, 0, 0);
+  const start = customFrom ? new Date(`${customFrom}T00:00:00`) : defaultStart;
   return { start, end: customEnd, label: 'Rango personalizado' };
 }
 
 /** Ingresos (pedidos no cancelados) por día dentro de [start, end], ambos incluidos. */
 function revenueByDay(orders: Order[], start: Date, end: Date) {
-  const days: { date: Date; amount: number }[] = [];
-  const cursor = new Date(start);
-  cursor.setHours(0, 0, 0, 0);
   const lastDay = new Date(end);
   lastDay.setHours(0, 0, 0, 0);
+  let cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
 
-  // Tope de 92 barras (~3 meses) para que un rango personalizado muy largo no
-  // vuelva el gráfico ilegible; el total y los KPIs sí cubren el rango completo.
-  let guard = 0;
-  while (cursor.getTime() <= lastDay.getTime() && guard < 92) {
-    days.push({ date: new Date(cursor), amount: 0 });
-    cursor.setDate(cursor.getDate() + 1);
-    guard++;
+  // Tope de 92 barras (~3 meses): si el rango es más largo, se recorta al
+  // tramo más reciente (terminando siempre en "end") para que el gráfico siga
+  // siendo legible y no deje "hoy" fuera de vista. El total y los demás KPIs
+  // sí suman el rango completo, esto solo limita las barras del gráfico.
+  const spanDays = Math.round((lastDay.getTime() - cursor.getTime()) / 86400000) + 1;
+  if (spanDays > 92) {
+    cursor = new Date(lastDay);
+    cursor.setDate(cursor.getDate() - 91);
+  }
+
+  const days: { date: Date; amount: number }[] = [];
+  const iter = new Date(cursor);
+  while (iter.getTime() <= lastDay.getTime()) {
+    days.push({ date: new Date(iter), amount: 0 });
+    iter.setDate(iter.getDate() + 1);
   }
 
   for (const order of orders) {
