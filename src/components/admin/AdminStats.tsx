@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   TrendingUp, ShoppingBag, Package, Users,
-  Sparkles, DollarSign, Calendar, CalendarRange, ArrowUpRight, ArrowDownRight, Clock
+  Sparkles, DollarSign, Calendar, ArrowUpRight, ArrowDownRight, Clock
 } from 'lucide-react';
 import { Product, Order } from '../../types';
 import { formatCOP, isPromoActive } from '../../utils/promoHelpers';
@@ -14,7 +14,10 @@ interface AdminStatsProps {
 
 const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-type RangePreset = 'today' | 'week' | 'month' | 'custom';
+// Solo día/semana/mes: un rango personalizado podía generar tantas barras que
+// desbordaba tarjetas angostas (ver commit anterior). Con estos 3 el gráfico
+// nunca pasa de 30 barras, tamaño ya probado que cabe sin desbordar.
+type RangePreset = 'today' | 'week' | 'month';
 
 const RANGE_PRESETS: { id: RangePreset; label: string }[] = [
   { id: 'today', label: 'Hoy' },
@@ -22,40 +25,25 @@ const RANGE_PRESETS: { id: RangePreset; label: string }[] = [
   { id: 'month', label: 'Últimos 30 días' },
 ];
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
-
 /** Calcula el rango [inicio, fin] según el filtro elegido por el admin. */
-function resolveRange(preset: RangePreset, customFrom: string, customTo: string): { start: Date; end: Date; label: string } {
+function resolveRange(preset: RangePreset): { start: Date; end: Date; label: string } {
   const end = new Date();
   end.setHours(23, 59, 59, 999);
+  const start = new Date();
 
   if (preset === 'today') {
-    const start = new Date();
     start.setHours(0, 0, 0, 0);
     return { start, end, label: 'Hoy' };
   }
   if (preset === 'week') {
-    const start = new Date();
     start.setDate(start.getDate() - 6);
     start.setHours(0, 0, 0, 0);
     return { start, end, label: 'Últimos 7 días' };
   }
-  if (preset === 'month') {
-    const start = new Date();
-    start.setDate(start.getDate() - 29);
-    start.setHours(0, 0, 0, 0);
-    return { start, end, label: 'Últimos 30 días' };
-  }
-
-  // Rango personalizado: si falta un extremo, se completa con una ventana de
-  // 30 días en vez de dejarlo abierto hasta 1970 (eso desbordaba el gráfico
-  // con miles de barras vacías apenas se entraba a este modo).
-  const customEnd = customTo ? new Date(`${customTo}T23:59:59`) : end;
-  const defaultStart = new Date(customEnd);
-  defaultStart.setDate(defaultStart.getDate() - 29);
-  defaultStart.setHours(0, 0, 0, 0);
-  const start = customFrom ? new Date(`${customFrom}T00:00:00`) : defaultStart;
-  return { start, end: customEnd, label: 'Rango personalizado' };
+  // month
+  start.setDate(start.getDate() - 29);
+  start.setHours(0, 0, 0, 0);
+  return { start, end, label: 'Últimos 30 días' };
 }
 
 /** Ingresos (pedidos no cancelados) por día dentro de [start, end], ambos incluidos. */
@@ -107,12 +95,10 @@ export const AdminStats: React.FC<AdminStatsProps> = ({
 }) => {
   // Filtro de periodo para los KPIs comerciales (no afecta stock/promos: son estado actual)
   const [rangePreset, setRangePreset] = useState<RangePreset>('week');
-  const [customFrom, setCustomFrom] = useState('');
-  const [customTo, setCustomTo] = useState('');
 
   const { start: rangeStart, end: rangeEnd, label: rangeLabel } = useMemo(
-    () => resolveRange(rangePreset, customFrom, customTo),
-    [rangePreset, customFrom, customTo]
+    () => resolveRange(rangePreset),
+    [rangePreset]
   );
 
   const ordersInRange = useMemo(() => orders.filter((o) => {
@@ -171,41 +157,7 @@ export const AdminStats: React.FC<AdminStatsProps> = ({
               {p.label}
             </button>
           ))}
-          <button
-            onClick={() => setRangePreset('custom')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors ${
-              rangePreset === 'custom'
-                ? 'bg-cuero-espresso text-white shadow-sm'
-                : 'bg-brand-cream text-cuero-espresso border border-cuero-arena hover:bg-cuero-arena/30'
-            }`}
-          >
-            <CalendarRange className="w-3.5 h-3.5" />
-            <span>Fecha personalizada</span>
-          </button>
         </div>
-
-        {rangePreset === 'custom' && (
-          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-            <input
-              type="date"
-              value={customFrom}
-              onChange={(e) => setCustomFrom(e.target.value)}
-              max={customTo || todayISO()}
-              className="px-2.5 py-1.5 rounded-lg bg-brand-cream border border-cuero-arena text-xs text-cuero-espresso"
-              aria-label="Desde"
-            />
-            <span className="text-cuero-cognac text-xs">a</span>
-            <input
-              type="date"
-              value={customTo}
-              onChange={(e) => setCustomTo(e.target.value)}
-              min={customFrom || undefined}
-              max={todayISO()}
-              className="px-2.5 py-1.5 rounded-lg bg-brand-cream border border-cuero-arena text-xs text-cuero-espresso"
-              aria-label="Hasta"
-            />
-          </div>
-        )}
       </div>
 
       {/* 2. Key Performance Indicators (KPI Cards) */}
@@ -314,25 +266,35 @@ export const AdminStats: React.FC<AdminStatsProps> = ({
           </div>
 
           {/* Bar Chart Visualization */}
-          <div className="h-48 flex items-end justify-between gap-2 pt-6 pb-2 px-2 border-b border-cuero-arena/50">
-            {periodBars.map((bar, idx) => (
-              <div key={idx} className="flex-1 flex flex-col items-center gap-2 group">
-                <div className="relative w-full flex items-end justify-center h-36">
-                  {/* Tooltip on hover */}
-                  <div className="absolute -top-7 opacity-0 group-hover:opacity-100 transition-opacity bg-cuero-espresso text-white text-[10px] font-bold py-0.5 px-1.5 rounded pointer-events-none whitespace-nowrap z-10">
-                    {formatCOP(bar.amount)}
+          <div className="h-48 flex items-end justify-between gap-1 sm:gap-2 pt-6 pb-2 px-2 border-b border-cuero-arena/50">
+            {periodBars.map((bar, idx) => {
+              // Con muchas barras (ej. 30 días) no cabe una fecha bajo cada una sin
+              // desbordar o encimarse; se muestra un máximo de ~6 (siempre la
+              // primera y la última), con espacio de sobra entre ellas. El resto
+              // se ve al pasar el mouse. Sin truncar: a este ancho un "24/08"
+              // cortado ("2..") es peor que no mostrarlo.
+              const labelStride = Math.max(1, Math.ceil(periodBars.length / 6));
+              const showLabel = idx % labelStride === 0 || idx === periodBars.length - 1;
+
+              return (
+                <div key={idx} className="flex-1 min-w-0 flex flex-col items-center gap-2 group">
+                  <div className="relative w-full flex items-end justify-center h-36">
+                    {/* Tooltip on hover: siempre con fecha + monto, aunque la etiqueta esté oculta */}
+                    <div className="absolute -top-7 opacity-0 group-hover:opacity-100 transition-opacity bg-cuero-espresso text-white text-[10px] font-bold py-0.5 px-1.5 rounded pointer-events-none whitespace-nowrap z-10">
+                      {bar.day} · {formatCOP(bar.amount)}
+                    </div>
+                    {/* Bar */}
+                    <div
+                      style={{ height: bar.height }}
+                      className="w-full max-w-8 rounded-t-lg bg-linear-to-t from-cuero-cognac to-brand-teal group-hover:to-brand-red transition-all duration-300 shadow-sm"
+                    />
                   </div>
-                  {/* Bar */}
-                  <div
-                    style={{ height: bar.height }}
-                    className="w-full max-w-8 rounded-t-lg bg-linear-to-t from-cuero-cognac to-brand-teal group-hover:to-brand-red transition-all duration-300 shadow-sm"
-                  />
+                  <span className="text-[10px] font-bold text-cuero-cognac group-hover:text-cuero-espresso whitespace-nowrap">
+                    {showLabel ? bar.day : ''}
+                  </span>
                 </div>
-                <span className="text-[11px] font-bold text-cuero-cognac group-hover:text-cuero-espresso">
-                  {bar.day}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
