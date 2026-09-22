@@ -1,0 +1,146 @@
+@import "tailwindcss";
+@source "../index.html";
+@source "./**/*.{ts,tsx}";
+@source not "../**/*.md";
+
+@theme {
+  /* === Acentos de Marca (Extraídos del Logo) === */
+  --color-brand-red: #C41E3A;
+  --color-brand-teal: #5CB8B2;
+  --color-brand-cream: #FFF8F0;
+  
+  /* === Tonos de Marroquinería / Cuero === */
+  --color-cuero-espresso: #3C1A0B;
+  --color-cuero-cognac: #8B4513;
+  --color-cuero-caramelo: #C68E5B;
+  --color-cuero-arena: #D4B896;
+  --color-cuero-marfil: #F5F0E8;
+
+  /* === Acentos de Estado y Funcionales === */
+  --color-accent-gold: #D4A853;
+  --color-accent-olive: #6B7B3A;
+  --color-accent-terracota: #C2785C;
+  --color-whatsapp: #25D366;
+  --color-whatsapp-dark: #1EBE5D;
+
+  /* === Tipografías === */
+  --font-heading: "Playfair Display", Georgia, serif;
+  --font-sans: "Lato", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  * {
+    caret-color: var(--color-cuero-cognac);
+  }
+
+  ::selection {
+    background-color: rgba(92, 184, 178, 0.28);
+    color: var(--color-cuero-espresso);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-brand-cream);
+    color: var(--color-cuero-espresso);
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, .font-heading {
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
+  }
+
+  code, pre, .font-mono {
+    font-family: var(--font-mono);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-teal);
+    outline-offset: 2px;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F5F0E8;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D4B896;
+  border-radius: 6px;
+  border: 1px solid #F5F0E8;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #C68E5B;
+}
+
+/* Warm Leather Shadow System (Impeccable Craft Floor) */
+.shadow-cuero-sm {
+  box-shadow: 0 2px 6px -1px rgba(60, 26, 11, 0.07), 0 1px 3px -1px rgba(60, 26, 11, 0.05);
+}
+
+.shadow-cuero-md {
+  box-shadow: 0 6px 16px -2px rgba(60, 26, 11, 0.09), 0 3px 6px -2px rgba(60, 26, 11, 0.06);
+}
+
+.shadow-cuero-lg {
+  box-shadow: 0 12px 28px -4px rgba(60, 26, 11, 0.12), 0 4px 10px -2px rgba(60, 26, 11, 0.07);
+}
+
+/* Leather Texture Effect */
+.bg-leather-subtle {
+  background-color: var(--color-cuero-marfil);
+  background-image: radial-gradient(rgba(139, 69, 19, 0.04) 1px, transparent 0);
+  background-size: 16px 16px;
+}
+
+.bg-dark-leather {
+  background-color: #2A1207;
+  background-image: radial-gradient(rgba(198, 142, 91, 0.08) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+/* Glassmorphism */
+.glass-panel {
+  background: rgba(245, 240, 232, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(212, 184, 150, 0.45);
+}
+
+.glass-panel-dark {
+  background: rgba(60, 26, 11, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(198, 142, 91, 0.25);
+}
+
+/* Saddle Stitch (Pespunte Artesanal de Marroquinería) */
+.border-stitched {
+  border: 2px dashed #C68E5B;
+}
+
+.border-stitched-subtle {
+  border: 1.5px dashed rgba(198, 142, 91, 0.5);
+}
+
+.border-stitched-light {
+  border: 1.5px dashed rgba(212, 184, 150, 0.6);
+}
+
+/* Shimmer Animation */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}

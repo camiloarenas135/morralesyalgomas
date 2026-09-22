@@ -1,0 +1,25 @@
+# Dependencias y build
+node_modules
+dist
+
+# Variables de entorno y secretos (usar .env.example como plantilla)
+.env
+.env.local
+.env.*.local
+
+# Vercel (vínculo local con el proyecto)
+.vercel
+
+# Sistema / logs
+*.log
+.DS_Store
+
+# Configuración local de herramientas de desarrollo (no forma parte de la app)
+.claude/
+.mcp.json
+.agents/
+skills-lock.json
+
+# Documentos internos del proyecto (contrato y referencias a otros proyectos)
+arquitectura_morrales_y_algo_mas.md
+diseno_ui_ux_morrales_y_algo_mas.md
