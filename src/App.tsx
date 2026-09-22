@@ -4,6 +4,7 @@ import { PromoSection } from './components/PromoSection';
 import { Catalog } from './components/Catalog';
 import { Cart } from './components/Cart';
 import { Footer } from './components/Footer';
+import { WhatsAppFloatButton } from './components/WhatsAppFloatButton';
 import { AdminPanel } from './components/admin/AdminPanel';
 import { Product, ProductVariant, OrderCartItem, Category, Order } from './types';
 import { StoreManager } from './lib/supabase';
@@ -215,7 +216,7 @@ export function App() {
       
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 p-4 bg-cuero-espresso text-white text-xs font-bold rounded-2xl shadow-2xl border border-accent-gold/40 flex items-center gap-3 animate-in slide-in-from-bottom-5">
+        <div className="fixed bottom-24 right-5 z-50 p-4 bg-cuero-espresso text-white text-xs font-bold rounded-2xl shadow-2xl border border-accent-gold/40 flex items-center gap-3 animate-in slide-in-from-bottom-5">
           <div className="p-1 rounded-full bg-brand-teal text-cuero-espresso">
             <Check className="w-3.5 h-3.5" />
           </div>
@@ -272,6 +273,9 @@ export function App() {
 
       {/* Footer */}
       <Footer />
+
+      {/* Burbuja flotante de WhatsApp — se oculta sola si el carrito está abierto (queda detrás, z-40 < z-50) */}
+      <WhatsAppFloatButton />
 
     </div>
   );

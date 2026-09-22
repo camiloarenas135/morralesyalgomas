@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Plus, Search, Edit2, Trash2, X, Image as ImageIcon,
   Layers, Check, AlertCircle, Sparkles, HandMetal, Package,
-  Upload, Loader2, Star, Link as LinkIcon, ChevronLeft, ChevronRight
+  Upload, Loader2, Star, Link as LinkIcon
 } from 'lucide-react';
 import { Product, ProductVariant, Category } from '../../types';
 import { StoreManager } from '../../lib/supabase';
@@ -10,6 +10,7 @@ import { formatCOP, parseCOP, isPromoActive } from '../../utils/promoHelpers';
 import { sanitizeInput } from '../../utils/sanitize';
 import { ErrorBanner, errorMessage } from './ErrorBanner';
 import { ImageCropModal } from './ImageCropModal';
+import { Pagination } from './Pagination';
 
 interface AdminCatalogProps {
   products: Product[];
@@ -18,19 +19,6 @@ interface AdminCatalogProps {
 }
 
 const PRODUCTS_PER_PAGE = 20;
-
-/** Números de página a mostrar, con "…" para rangos largos (ej: 1 … 4 5 6 … 12). */
-function getPageNumbers(current: number, total: number): (number | 'ellipsis')[] {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const pages: (number | 'ellipsis')[] = [1];
-  if (current > 3) pages.push('ellipsis');
-  const start = Math.max(2, current - 1);
-  const end = Math.min(total - 1, current + 1);
-  for (let p = start; p <= end; p++) pages.push(p);
-  if (current < total - 2) pages.push('ellipsis');
-  pages.push(total);
-  return pages;
-}
 
 export const AdminCatalog: React.FC<AdminCatalogProps> = ({
   products,
@@ -528,53 +516,18 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
 
       {/* 3c. Paginado — compartido entre la vista móvil y la de escritorio */}
       {filteredProducts.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-[11px] text-cuero-cognac">
-            Mostrando <strong className="text-cuero-espresso">{pageStart + 1}–{Math.min(pageStart + PRODUCTS_PER_PAGE, filteredProducts.length)}</strong> de{' '}
-            <strong className="text-cuero-espresso">{filteredProducts.length}</strong> {filteredProducts.length === 1 ? 'producto' : 'productos'}
-          </p>
-
-          {totalPages > 1 && (
-            <div className="flex items-center gap-1.5 flex-wrap justify-center">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="p-2 rounded-xl bg-cuero-marfil border border-cuero-arena text-cuero-espresso disabled:opacity-40 disabled:cursor-not-allowed hover:bg-cuero-arena/30 transition-colors"
-                aria-label="Página anterior"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-
-              {getPageNumbers(currentPage, totalPages).map((p, idx) =>
-                p === 'ellipsis' ? (
-                  <span key={`ellipsis-${idx}`} className="px-1.5 text-cuero-cognac text-xs select-none">…</span>
-                ) : (
-                  <button
-                    key={p}
-                    onClick={() => setCurrentPage(p)}
-                    aria-current={currentPage === p ? 'page' : undefined}
-                    className={`min-w-9 px-2.5 py-2 rounded-xl text-xs font-bold transition-colors ${
-                      currentPage === p
-                        ? 'bg-cuero-espresso text-white shadow-sm'
-                        : 'bg-cuero-marfil border border-cuero-arena text-cuero-espresso hover:bg-cuero-arena/30'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                )
-              )}
-
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="p-2 rounded-xl bg-cuero-marfil border border-cuero-arena text-cuero-espresso disabled:opacity-40 disabled:cursor-not-allowed hover:bg-cuero-arena/30 transition-colors"
-                aria-label="Página siguiente"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          counter={{
+            totalItems: filteredProducts.length,
+            pageStart: pageStart + 1,
+            pageEnd: Math.min(pageStart + PRODUCTS_PER_PAGE, filteredProducts.length),
+            itemLabel: 'producto',
+            itemLabelPlural: 'productos'
+          }}
+        />
       )}
 
       {/* 4. Create / Edit Modal */}

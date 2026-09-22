@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
-import { 
-  ShoppingBag, Search, CheckCircle2, Clock, Truck, 
-  XCircle, Eye, MessageCircle, Phone, MapPin, CreditCard, Calendar, X 
+import React, { useEffect, useState } from 'react';
+import {
+  ShoppingBag, Search, CheckCircle2, Clock, Truck,
+  XCircle, Eye, MessageCircle, Phone, MapPin, CreditCard, Calendar, X
 } from 'lucide-react';
 import { Order } from '../../types';
 import { StoreManager } from '../../lib/supabase';
 import { ErrorBanner, errorMessage } from './ErrorBanner';
 import { formatCOP } from '../../utils/promoHelpers';
+import { Pagination } from './Pagination';
 
 interface AdminOrdersProps {
   orders: Order[];
   onRefresh: () => void;
 }
+
+const ORDERS_PER_PAGE = 20;
 
 export const AdminOrders: React.FC<AdminOrdersProps> = ({
   orders,
@@ -20,6 +23,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [actionError, setActionError] = useState('');
 
@@ -46,6 +50,19 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
     const matchStatus = statusFilter === 'all' || o.status === statusFilter;
     return matchSearch && matchStatus;
   });
+
+  // Vuelve a la página 1 al cambiar la búsqueda/filtro; se ajusta sola si la
+  // página actual queda fuera de rango (ej. tras cambiar el estado de un pedido).
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / ORDERS_PER_PAGE));
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+  useEffect(() => {
+    setCurrentPage((p) => Math.min(p, totalPages));
+  }, [totalPages]);
+
+  const pageStart = (currentPage - 1) * ORDERS_PER_PAGE;
+  const paginatedOrders = filteredOrders.slice(pageStart, pageStart + ORDERS_PER_PAGE);
 
   return (
     <div className="space-y-6">
@@ -98,7 +115,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
 
       {/* 3a. Orders Cards — solo móvil/tablet (< md) */}
       <div className="md:hidden space-y-3">
-        {filteredOrders.map((order) => (
+        {paginatedOrders.map((order) => (
           <div
             key={order.id}
             className="p-4 bg-cuero-marfil rounded-2xl border border-cuero-arena/70 shadow-xs space-y-3"
@@ -174,7 +191,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-cuero-arena/40">
-              {filteredOrders.map((order) => (
+              {paginatedOrders.map((order) => (
                 <tr key={order.id} className="hover:bg-brand-cream/60 transition-colors">
                   <td className="p-3.5 font-mono font-bold text-cuero-espresso">
                     {order.id}
@@ -221,8 +238,31 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
               ))}
             </tbody>
           </table>
+
+          {filteredOrders.length === 0 && (
+            <div className="p-10 text-center text-cuero-cognac text-xs space-y-2">
+              <ShoppingBag className="w-8 h-8 mx-auto text-cuero-arena" />
+              <p>Ningún pedido coincide con la búsqueda o el filtro.</p>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* 3c. Paginado — compartido entre la vista móvil y la de escritorio */}
+      {filteredOrders.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          counter={{
+            totalItems: filteredOrders.length,
+            pageStart: pageStart + 1,
+            pageEnd: Math.min(pageStart + ORDERS_PER_PAGE, filteredOrders.length),
+            itemLabel: 'pedido',
+            itemLabelPlural: 'pedidos'
+          }}
+        />
+      )}
 
       {/* 4. Order Detail Modal */}
       {selectedOrder && (
