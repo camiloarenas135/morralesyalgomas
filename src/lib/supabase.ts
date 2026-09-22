@@ -6,6 +6,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Product, Order, Category } from '../types';
 import { INITIAL_PRODUCTS, INITIAL_ORDERS, MOCK_CATEGORIES } from '../data/mockProducts';
+import { toWebP } from '../utils/imageOptimizer';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -394,12 +395,15 @@ export class StoreManager {
     }
 
     try {
-      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      // Se convierte a WebP (y se limita el tamaño) en el navegador antes de
+      // subir, para que las fotos de producto no pesen varios MB cada una.
+      const optimized = await toWebP(file);
+      const ext = (optimized.name.split('.').pop() || 'jpg').toLowerCase();
       const filePath = `products/product-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from('product-images')
-        .upload(filePath, file, { cacheControl: '3600', upsert: false });
+        .upload(filePath, optimized, { cacheControl: '3600', upsert: false, contentType: optimized.type });
 
       if (uploadError) {
         console.error('Error uploading image to Supabase Storage:', uploadError);

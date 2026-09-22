@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, Timer, ArrowRight, ChevronLeft, ChevronRight, ShoppingBag, Flame, Star, Shield, Award } from 'lucide-react';
 import { Product, PromoBanner } from '../types';
 import { MOCK_BANNERS } from '../data/mockProducts';
-import { calculateDiscountPercent, calculateTimeRemaining, formatCOP, parseCOP } from '../utils/promoHelpers';
+import { calculateDiscountPercent, calculateTimeRemaining, formatCOP, parseCOP, isPromoActive } from '../utils/promoHelpers';
 
 interface PromoSectionProps {
   products: Product[];
@@ -17,8 +17,8 @@ export const PromoSection: React.FC<PromoSectionProps> = ({
   onAddToCart,
   onFilterPromos
 }) => {
-  // Filtramos los productos que tengan promo_price activa
-  const promoProducts = products.filter(p => p.promo_price && p.stock > 0);
+  // Filtramos los productos con promoción vigente (promo_price + no vencida)
+  const promoProducts = products.filter(p => isPromoActive(p) && p.stock > 0);
 
   // Seleccionamos la fecha límite de promoción más próxima o la primera con promo_end_date
   const activePromoDate = promoProducts.find(p => p.promo_end_date)?.promo_end_date || new Date(Date.now() + 1000 * 60 * 60 * 36).toISOString();

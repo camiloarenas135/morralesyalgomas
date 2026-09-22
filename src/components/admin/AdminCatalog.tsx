@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { 
-  Plus, Search, Edit2, Trash2, X, Image as ImageIcon, 
+import {
+  Plus, Search, Edit2, Trash2, X, Image as ImageIcon,
   Layers, Check, AlertCircle, Sparkles, HandMetal, Package,
-  Upload, Loader2 
+  Upload, Loader2, Star, Link as LinkIcon
 } from 'lucide-react';
 import { Product, ProductVariant, Category } from '../../types';
 import { StoreManager } from '../../lib/supabase';
-import { formatCOP, parseCOP } from '../../utils/promoHelpers';
+import { formatCOP, parseCOP, isPromoActive } from '../../utils/promoHelpers';
 import { sanitizeInput } from '../../utils/sanitize';
 import { ErrorBanner, errorMessage } from './ErrorBanner';
 
@@ -31,11 +31,11 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
   // Form State
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
-  const [promoPrice, setPromoPrice] = useState('');
   const [category, setCategory] = useState('Morrales');
   const [stock, setStock] = useState(10);
   const [description, setDescription] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+  const [images, setImages] = useState<string[]>([]);
+  const [newImageUrl, setNewImageUrl] = useState('');
   const [materialType, setMaterialType] = useState('Cuero Vacuno Genuino');
   const [dimensions, setDimensions] = useState('40cm × 30cm × 12cm');
   const [weight, setWeight] = useState('850g');
@@ -44,49 +44,109 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
   const [handmade, setHandmade] = useState(true);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
 
+  // Producto en edición, solo para mostrar su estado de promo (se gestiona en la pestaña Promociones)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
   // Variant input
   const [variantName, setVariantName] = useState('');
   const [variantColorHex, setVariantColorHex] = useState('#8B4513');
+  const [uploadingVariantIdx, setUploadingVariantIdx] = useState<number | null>(null);
 
   // Supabase Storage image upload
-  const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Errores de guardado / borrado
   const [actionError, setActionError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const uploadFile = async (file: File): Promise<string | null> => {
+    return StoreManager.uploadProductImage(file);
+  };
 
-    setIsUploading(true);
+  // Sube una o varias fotos y las agrega a la galería del producto (no reemplazan las existentes).
+  const handleAddImagesFromDevice = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = ''; // permite volver a elegir el mismo archivo más tarde
+    if (files.length === 0) return;
+
+    setIsUploadingImages(true);
     setUploadError(null);
     try {
-      const publicUrl = await StoreManager.uploadProductImage(file);
-      if (publicUrl) {
-        setImageUrl(publicUrl);
-      } else {
-        setUploadError('No se pudo subir la imagen al almacenamiento.');
+      const uploaded: string[] = [];
+      for (const file of files) {
+        const url = await uploadFile(file);
+        if (url) uploaded.push(url);
+      }
+      if (uploaded.length > 0) {
+        setImages((prev) => [...prev, ...uploaded]);
+      }
+      if (uploaded.length < files.length) {
+        setUploadError(`${files.length - uploaded.length} de ${files.length} foto(s) no se pudieron subir.`);
       }
     } catch (err) {
-      setUploadError('Error al subir imagen a Supabase.');
+      setUploadError('Error al subir imágenes a Supabase.');
     } finally {
-      setIsUploading(false);
+      setIsUploadingImages(false);
     }
+  };
+
+  const handleAddImageUrl = () => {
+    const url = newImageUrl.trim();
+    if (!url) return;
+    setImages((prev) => [...prev, url]);
+    setNewImageUrl('');
+  };
+
+  const handleRemoveImage = (idx: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSetPrimaryImage = (idx: number) => {
+    setImages((prev) => {
+      if (idx <= 0 || idx >= prev.length) return prev;
+      const copy = [...prev];
+      const [item] = copy.splice(idx, 1);
+      copy.unshift(item);
+      return copy;
+    });
+  };
+
+  // Foto propia de una variante (ej: el mismo bolso en otro color). Si no tiene,
+  // la tienda usa la foto principal del producto.
+  const handleVariantImageUpload = async (idx: number, file: File) => {
+    setUploadingVariantIdx(idx);
+    setUploadError(null);
+    try {
+      const url = await uploadFile(file);
+      if (url) {
+        setVariants((prev) => prev.map((v, i) => (i === idx ? { ...v, image: url } : v)));
+      } else {
+        setUploadError('No se pudo subir la foto de la variante.');
+      }
+    } catch (err) {
+      setUploadError('Error al subir la foto de la variante.');
+    } finally {
+      setUploadingVariantIdx(null);
+    }
+  };
+
+  const handleRemoveVariantImage = (idx: number) => {
+    setVariants((prev) => prev.map((v, i) => (i === idx ? { ...v, image: undefined } : v)));
   };
 
   // Open modal for Create
   const handleOpenCreate = () => {
     setActionError('');
     setEditingProductId(null);
+    setEditingProduct(null);
     setName('');
     setPrice('$189.900');
-    setPromoPrice('');
     setCategory(categories[0]?.name || 'Morrales');
     setStock(10);
     setDescription('');
-    setImageUrl('https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=800&q=80');
+    setImages(['https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=800&q=80']);
+    setNewImageUrl('');
     setMaterialType('Cuero Vacuno 100%');
     setDimensions('38cm × 28cm × 12cm');
     setWeight('750g');
@@ -104,13 +164,14 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
   const handleOpenEdit = (prod: Product) => {
     setActionError('');
     setEditingProductId(prod.id);
+    setEditingProduct(prod);
     setName(prod.name);
     setPrice(prod.price);
-    setPromoPrice(prod.promo_price || '');
     setCategory(prod.category);
     setStock(prod.stock);
     setDescription(prod.description);
-    setImageUrl(prod.images[0] || '');
+    setImages(prod.images && prod.images.length > 0 ? prod.images : []);
+    setNewImageUrl('');
     setMaterialType(prod.material_type || '');
     setDimensions(prod.dimensions || '');
     setWeight(prod.weight || '');
@@ -126,15 +187,21 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
     e.preventDefault();
     const cleanName = sanitizeInput(name);
     if (!cleanName) return;
+    if (images.length === 0) {
+      setActionError('Agrega al menos una fotografía del producto.');
+      return;
+    }
 
+    // promo_price / promo_end_date NO se tocan desde aquí: la pestaña
+    // Promociones es la única fuente de verdad para no pisar el countdown
+    // ya configurado con un guardado suelto de la ficha del producto.
     const payload = {
       name: cleanName,
       price: price.startsWith('$') ? price : `$${price}`,
-      promo_price: promoPrice ? (promoPrice.startsWith('$') ? promoPrice : `$${promoPrice}`) : undefined,
       category,
       stock: Number(stock),
       description: sanitizeInput(description),
-      images: [imageUrl],
+      images,
       material_type: sanitizeInput(materialType),
       dimensions: sanitizeInput(dimensions),
       weight: sanitizeInput(weight),
@@ -248,8 +315,82 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
         </div>
       </div>
 
-      {/* 3. Products Table */}
-      <div className="bg-cuero-marfil rounded-2xl border border-cuero-arena/70 shadow-xs overflow-hidden">
+      {/* 3a. Products Cards — solo móvil/tablet (< md) */}
+      <div className="md:hidden space-y-3">
+        {filteredProducts.map((prod) => (
+          <div
+            key={prod.id}
+            className="p-4 bg-cuero-marfil rounded-2xl border border-cuero-arena/70 shadow-xs space-y-3"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-14 h-14 rounded-xl overflow-hidden bg-cuero-arena/30 border border-cuero-arena/50 shrink-0">
+                <img src={prod.images[0]} alt={prod.name} className="w-full h-full object-cover" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="font-bold text-cuero-espresso block text-xs truncate">{prod.name}</span>
+                <span className="font-mono text-[10px] text-cuero-cognac block">{prod.sku || 'SIN-SKU'}</span>
+                <span className="text-[10px] text-cuero-caramelo font-semibold">{prod.category}</span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => handleOpenEdit(prod)}
+                  className="p-2 rounded-lg bg-cuero-arena/30 hover:bg-cuero-cognac hover:text-white transition-colors"
+                  title="Editar producto"
+                  aria-label="Editar producto"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => handleDeleteProduct(prod.id)}
+                  className="p-2 rounded-lg bg-brand-red/10 text-brand-red hover:bg-brand-red hover:text-white transition-colors"
+                  title="Eliminar producto"
+                  aria-label="Eliminar producto"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-cuero-arena/40">
+              <div>
+                <span className="text-cuero-cognac font-bold block text-[10px] uppercase">Precio</span>
+                <span className="font-bold text-cuero-espresso">{prod.price}</span>
+                {prod.promo_price && (
+                  <span className={`font-black block ${isPromoActive(prod) ? 'text-brand-red' : 'text-gray-400 line-through'}`}>
+                    {prod.promo_price}
+                  </span>
+                )}
+              </div>
+              <div>
+                <span className="text-cuero-cognac font-bold block text-[10px] uppercase">Stock</span>
+                <span className={`inline-block px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                  prod.stock > 5 ? 'bg-accent-olive/20 text-accent-olive' :
+                  prod.stock > 0 ? 'bg-accent-gold/20 text-cuero-espresso' :
+                  'bg-brand-red/20 text-brand-red'
+                }`}>
+                  {prod.stock} un.
+                </span>
+              </div>
+            </div>
+
+            {prod.handmade && (
+              <span className="text-accent-gold font-bold text-[10px] flex items-center gap-1">
+                <Check className="w-3 h-3" /> Hecho a Mano
+              </span>
+            )}
+          </div>
+        ))}
+
+        {filteredProducts.length === 0 && (
+          <div className="p-10 text-center text-cuero-cognac text-xs space-y-2 bg-cuero-marfil rounded-2xl border border-cuero-arena/70">
+            <Package className="w-8 h-8 mx-auto text-cuero-arena" />
+            <p>Ningún producto coincide con la búsqueda o el filtro.</p>
+          </div>
+        )}
+      </div>
+
+      {/* 3b. Products Table — solo escritorio (md+) */}
+      <div className="hidden md:block bg-cuero-marfil rounded-2xl border border-cuero-arena/70 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-cuero-espresso">
             <thead className="bg-cuero-espresso text-cuero-marfil uppercase text-[10px] tracking-wider font-bold">
@@ -284,7 +425,7 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
                   </td>
                   <td className="p-3.5">
                     {prod.promo_price ? (
-                      <span className="font-black text-brand-red">
+                      <span className={`font-black ${isPromoActive(prod) ? 'text-brand-red' : 'text-gray-400 line-through'}`}>
                         {prod.promo_price}
                       </span>
                     ) : (
@@ -392,14 +533,18 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
                 </div>
 
                 <div>
-                  <label className="font-bold text-brand-red block mb-1">Precio Promocional (Opcional)</label>
-                  <input
-                    type="text"
-                    value={promoPrice}
-                    onChange={(e) => setPromoPrice(e.target.value)}
-                    className="w-full p-2.5 rounded-xl bg-cuero-marfil border border-brand-red/40 font-bold text-brand-red"
-                    placeholder="Ej: $149.900"
-                  />
+                  <label className="font-bold text-cuero-espresso block mb-1">Precio Promocional</label>
+                  <div className="w-full p-2.5 rounded-xl bg-cuero-marfil border border-cuero-arena flex items-center justify-between gap-2">
+                    {editingProduct && isPromoActive(editingProduct) ? (
+                      <span className="font-black text-brand-red">{editingProduct.promo_price}</span>
+                    ) : (
+                      <span className="text-cuero-cognac/70 font-medium">Sin promoción activa</span>
+                    )}
+                    <span className="text-[10px] text-cuero-cognac font-bold flex items-center gap-1 shrink-0">
+                      <Sparkles className="w-3 h-3 text-brand-red" />
+                      Gestionar en Promociones
+                    </span>
+                  </div>
                 </div>
 
                 <div>
@@ -479,15 +624,17 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
                 </div>
               </div>
 
-              {/* Photo URL & Supabase Storage Upload */}
+              {/* Photo Gallery — varias fotos, la primera es la principal */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="font-bold text-cuero-espresso">Fotografía Principal HD *</label>
-                  <label className="cursor-pointer text-[11px] font-bold text-cuero-cognac hover:text-cuero-espresso flex items-center gap-1">
-                    {isUploading ? (
+                  <label className="font-bold text-cuero-espresso">
+                    Fotografías del Producto * <span className="font-normal text-cuero-cognac">({images.length})</span>
+                  </label>
+                  <label className={`cursor-pointer text-[11px] font-bold text-cuero-cognac hover:text-cuero-espresso flex items-center gap-1 ${isUploadingImages ? 'opacity-60 pointer-events-none' : ''}`}>
+                    {isUploadingImages ? (
                       <>
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>Subiendo a Supabase...</span>
+                        <span>Optimizando y subiendo...</span>
                       </>
                     ) : (
                       <>
@@ -498,28 +645,84 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
                     <input
                       type="file"
                       accept="image/*"
+                      multiple
                       className="hidden"
-                      onChange={handleFileUpload}
-                      disabled={isUploading}
+                      onChange={handleAddImagesFromDevice}
+                      disabled={isUploadingImages}
                     />
                   </label>
                 </div>
 
-                <div className="flex gap-3 items-center">
+                {images.length > 0 && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-2">
+                    {images.map((img, idx) => (
+                      <div
+                        key={idx}
+                        className={`relative group aspect-square rounded-xl overflow-hidden border-2 bg-cuero-arena/20 ${
+                          idx === 0 ? 'border-accent-gold' : 'border-cuero-arena'
+                        }`}
+                      >
+                        <img src={img} alt={`Foto ${idx + 1} de ${name || 'producto'}`} className="w-full h-full object-cover" />
+                        {idx === 0 && (
+                          <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-accent-gold text-cuero-espresso text-[9px] font-black">
+                            PRINCIPAL
+                          </span>
+                        )}
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                          {idx !== 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetPrimaryImage(idx)}
+                              title="Marcar como principal"
+                              aria-label="Marcar como principal"
+                              className="p-1.5 rounded-lg bg-white/90 text-cuero-espresso hover:bg-white"
+                            >
+                              <Star className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(idx)}
+                            title="Quitar foto"
+                            aria-label="Quitar foto"
+                            className="p-1.5 rounded-lg bg-white/90 text-brand-red hover:bg-white"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
                   <input
                     type="url"
-                    required
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
+                    value={newImageUrl}
+                    onChange={(e) => setNewImageUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddImageUrl();
+                      }
+                    }}
                     className="flex-1 p-2.5 rounded-xl bg-cuero-marfil border border-cuero-arena text-xs"
-                    placeholder="https://... o sube una imagen con el botón superior"
+                    placeholder="O pega una URL de imagen..."
                   />
-                  {imageUrl && (
-                    <div className="w-10 h-10 rounded-lg overflow-hidden border border-cuero-arena shrink-0 shadow-sm">
-                      <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleAddImageUrl}
+                    disabled={!newImageUrl.trim()}
+                    className="px-3 py-2 rounded-xl bg-cuero-arena/40 hover:bg-cuero-arena/60 disabled:opacity-50 text-cuero-espresso font-bold text-xs flex items-center gap-1.5 transition-colors"
+                  >
+                    <LinkIcon className="w-3.5 h-3.5" />
+                    <span>Agregar</span>
+                  </button>
                 </div>
+
+                {images.length === 0 && (
+                  <p className="text-[11px] text-brand-red font-semibold mt-1">Agrega al menos una fotografía.</p>
+                )}
                 {uploadError && (
                   <p className="text-[11px] text-brand-red font-semibold mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" />
@@ -543,8 +746,13 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
 
               {/* Variants Matrix */}
               <div className="p-4 bg-cuero-marfil rounded-2xl border border-cuero-arena/60 space-y-3">
-                <label className="font-bold text-cuero-espresso block">Variantes de Color y Tono</label>
-                
+                <div>
+                  <label className="font-bold text-cuero-espresso block">Variantes de Color y Tono</label>
+                  <p className="text-[11px] text-cuero-cognac">
+                    Cada variante puede tener su propia foto; si no le asignas una, la tienda usa la foto principal del producto.
+                  </p>
+                </div>
+
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -570,22 +778,68 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
                 </div>
 
                 {variants.length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-1">
+                  <div className="space-y-2 pt-1">
                     {variants.map((v, idx) => (
-                      <span
+                      <div
                         key={idx}
-                        className="px-2.5 py-1 rounded-lg bg-brand-cream border border-cuero-arena text-cuero-espresso font-bold text-xs flex items-center gap-1.5"
+                        className="flex items-center gap-2.5 p-2 rounded-xl bg-brand-cream border border-cuero-arena/60"
                       >
-                        {v.colorHex && <span className="w-3 h-3 rounded-full" style={{ backgroundColor: v.colorHex }} />}
-                        <span>{v.name}</span>
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-cuero-arena/30 border border-cuero-arena/50 shrink-0">
+                          {v.image ? (
+                            <img src={v.image} alt={v.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="block w-full h-full" style={{ backgroundColor: v.colorHex || '#8B4513' }} />
+                          )}
+                        </div>
+
+                        <span className="flex-1 min-w-0 font-bold text-cuero-espresso truncate">{v.name}</span>
+
+                        <label
+                          className={`cursor-pointer p-1.5 rounded-lg bg-cuero-arena/30 hover:bg-cuero-cognac hover:text-white transition-colors ${
+                            uploadingVariantIdx !== null ? 'opacity-60 pointer-events-none' : ''
+                          }`}
+                          title={v.image ? 'Cambiar foto de la variante' : 'Subir foto de la variante'}
+                        >
+                          {uploadingVariantIdx === idx ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <ImageIcon className="w-3.5 h-3.5" />
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={uploadingVariantIdx !== null}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = '';
+                              if (file) handleVariantImageUpload(idx, file);
+                            }}
+                          />
+                        </label>
+
+                        {v.image && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveVariantImage(idx)}
+                            title="Quitar foto de la variante"
+                            aria-label="Quitar foto de la variante"
+                            className="p-1.5 rounded-lg text-cuero-cognac hover:text-brand-red hover:bg-brand-red/10 transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => handleRemoveVariant(idx)}
-                          className="text-brand-red ml-1 hover:font-black"
+                          title="Eliminar variante"
+                          aria-label="Eliminar variante"
+                          className="p-1.5 rounded-lg text-brand-red hover:bg-brand-red/10 transition-colors"
                         >
-                          ×
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      </span>
+                      </div>
                     ))}
                   </div>
                 )}

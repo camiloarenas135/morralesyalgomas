@@ -76,7 +76,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
           <Search className="w-4 h-4 text-cuero-cognac absolute left-3 top-1/2 -translate-y-1/2" />
         </div>
 
-        <div className="w-full sm:w-auto flex items-center gap-2 overflow-x-auto">
+        <div className="w-full sm:w-auto flex flex-wrap items-center gap-2">
           {['all', 'pending', 'confirmed', 'shipped', 'cancelled'].map((st) => (
             <button
               key={st}
@@ -96,8 +96,70 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
         </div>
       </div>
 
-      {/* 3. Orders Table */}
-      <div className="bg-cuero-marfil rounded-2xl border border-cuero-arena/70 shadow-xs overflow-hidden">
+      {/* 3a. Orders Cards — solo móvil/tablet (< md) */}
+      <div className="md:hidden space-y-3">
+        {filteredOrders.map((order) => (
+          <div
+            key={order.id}
+            className="p-4 bg-cuero-marfil rounded-2xl border border-cuero-arena/70 shadow-xs space-y-3"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <span className="font-mono font-bold text-xs text-cuero-espresso block truncate">{order.id}</span>
+                <span className="font-bold text-sm text-cuero-espresso block truncate">{order.customer_name}</span>
+              </div>
+              <span className="font-black text-sm text-cuero-espresso shrink-0">{formatCOP(order.total_amount)}</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div>
+                <span className="text-cuero-cognac font-bold block text-[10px] uppercase">Teléfono</span>
+                <span className="font-mono text-cuero-espresso">{order.customer_phone}</span>
+              </div>
+              <div>
+                <span className="text-cuero-cognac font-bold block text-[10px] uppercase">Pago</span>
+                <span className="font-semibold text-cuero-espresso truncate block">{order.payment_method}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={order.status}
+                onChange={(e) => handleStatusChange(order.id, e.target.value as any)}
+                className={`flex-1 min-w-0 px-2.5 py-2 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                  order.status === 'confirmed' ? 'bg-brand-teal/20 text-teal-800 border-brand-teal' :
+                  order.status === 'shipped' ? 'bg-accent-olive/20 text-olive-800 border-accent-olive' :
+                  order.status === 'cancelled' ? 'bg-brand-red/20 text-brand-red border-brand-red' :
+                  'bg-accent-gold/20 text-amber-900 border-accent-gold'
+                }`}
+              >
+                <option value="pending">Pendiente</option>
+                <option value="confirmed">Confirmado</option>
+                <option value="shipped">Despachado</option>
+                <option value="cancelled">Cancelado</option>
+              </select>
+              <button
+                onClick={() => setSelectedOrder(order)}
+                className="shrink-0 p-2.5 rounded-lg bg-cuero-arena/30 hover:bg-cuero-cognac hover:text-white transition-colors"
+                title="Ver detalle del pedido"
+                aria-label="Ver detalle del pedido"
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {filteredOrders.length === 0 && (
+          <div className="p-10 text-center text-cuero-cognac text-xs space-y-2 bg-cuero-marfil rounded-2xl border border-cuero-arena/70">
+            <ShoppingBag className="w-8 h-8 mx-auto text-cuero-arena" />
+            <p>Ningún pedido coincide con la búsqueda o el filtro.</p>
+          </div>
+        )}
+      </div>
+
+      {/* 3b. Orders Table — solo escritorio (md+) */}
+      <div className="hidden md:block bg-cuero-marfil rounded-2xl border border-cuero-arena/70 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-cuero-espresso">
             <thead className="bg-cuero-espresso text-cuero-marfil uppercase text-[10px] tracking-wider font-bold">

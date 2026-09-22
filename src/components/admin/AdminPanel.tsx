@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Package, ShoppingBag, Sparkles,
-  Users, LogOut, ArrowLeft, Shield, Lock, CheckCircle2, RotateCcw
+  Users, LogOut, ArrowLeft, Home, Shield, Lock, CheckCircle2, RotateCcw
 } from 'lucide-react';
 import { Product, Order, Category } from '../../types';
 import { AdminStats } from './AdminStats';
@@ -34,6 +34,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Active Tab: stats | catalog | orders | promotions | customers
   const [activeTab, setActiveTab] = useState<'stats' | 'catalog' | 'orders' | 'promotions' | 'customers'>('stats');
+
+  // Definición única de tabs: alimenta el sidebar de escritorio y la barra inferior móvil.
+  const NAV_TABS = [
+    { id: 'stats' as const, icon: LayoutDashboard, label: 'Dashboard & KPIs', short: 'Panel', iconColor: 'text-brand-teal' },
+    { id: 'catalog' as const, icon: Package, label: `Catálogo & Stock (${products.length})`, short: 'Catálogo', iconColor: 'text-brand-teal' },
+    { id: 'orders' as const, icon: ShoppingBag, label: `Pedidos (${orders.length})`, short: 'Pedidos', iconColor: 'text-brand-teal' },
+    { id: 'promotions' as const, icon: Sparkles, label: 'Promos & Countdown', short: 'Promos', iconColor: 'text-brand-red' },
+    { id: 'customers' as const, icon: Users, label: `Clientes (${summarizeCustomers(orders).length})`, short: 'Clientes', iconColor: 'text-accent-gold' },
+  ];
 
   // Restaurar sesión (incluye el regreso de Google) y reaccionar a cierres de sesión
   useEffect(() => {
@@ -155,11 +164,54 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // MAIN ADMIN SHELL
   return (
-    <div className="min-h-screen bg-brand-cream flex flex-col lg:flex-row">
-      
-      {/* 1. Sidebar Navigation */}
-      <aside className="w-full lg:w-64 bg-cuero-espresso text-cuero-marfil shrink-0 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-cuero-cognac/40 shadow-xl">
-        
+    <div className="min-h-screen bg-brand-cream lg:flex">
+
+      {/* 1a. Barra superior — solo móvil/tablet (< lg) */}
+      <header className="lg:hidden sticky top-0 z-30 flex items-center justify-between gap-2 px-4 py-2.5 bg-cuero-espresso text-cuero-marfil shadow-md">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <img
+            src="/logo.png"
+            alt="Logo Morrales y Algo Más"
+            width={36}
+            height={36}
+            className="w-9 h-9 rounded-full shadow shrink-0"
+          />
+          <div className="min-w-0">
+            <h1 className="font-heading font-bold text-sm text-cuero-marfil leading-tight truncate">
+              Morrales Admin
+            </h1>
+            <span className="text-[10px] font-mono uppercase tracking-wider flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isSupabaseConfigured ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              <span className={isSupabaseConfigured ? 'text-emerald-300' : 'text-amber-300'}>
+                {isSupabaseConfigured ? 'Supabase Live' : 'Modo Offline'}
+              </span>
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={onNavigateHome}
+            title="Ir a Tienda Pública"
+            aria-label="Ir a Tienda Pública"
+            className="p-2.5 rounded-xl text-cuero-marfil hover:bg-cuero-marfil/10 transition-colors"
+          >
+            <Home className="w-4.5 h-4.5" />
+          </button>
+          <button
+            onClick={handleLogout}
+            title="Cerrar Sesión"
+            aria-label="Cerrar Sesión"
+            className="p-2.5 rounded-xl text-brand-red/90 hover:bg-brand-red/10 transition-colors"
+          >
+            <LogOut className="w-4.5 h-4.5" />
+          </button>
+        </div>
+      </header>
+
+      {/* 1b. Sidebar Navigation — solo escritorio (lg+) */}
+      <aside className="hidden lg:flex lg:w-64 bg-cuero-espresso text-cuero-marfil shrink-0 flex-col justify-between border-r border-cuero-cognac/40 shadow-xl">
+
         {/* Top Logo & Brand */}
         <div>
           <div className="p-6 border-b border-cuero-cognac/30 space-y-3">
@@ -183,8 +235,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
             {/* Supabase PostgreSQL Badge */}
             <div className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-[11px] font-mono ${
-              isSupabaseConfigured 
-                ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300' 
+              isSupabaseConfigured
+                ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300'
                 : 'bg-amber-950/40 border-amber-500/30 text-amber-300'
             }`}>
               <span className="flex items-center gap-1.5">
@@ -197,65 +249,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
           {/* Nav Tabs */}
           <nav className="p-4 space-y-1.5 text-xs font-semibold">
-            <button
-              onClick={() => setActiveTab('stats')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 transition-colors ${
-                activeTab === 'stats' 
-                  ? 'bg-cuero-cognac text-white shadow-md' 
-                  : 'text-cuero-arena hover:bg-cuero-marfil/10 hover:text-white'
-              }`}
-            >
-              <LayoutDashboard className="w-4 h-4 text-brand-teal" />
-              <span>Dashboard & KPIs</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('catalog')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 transition-colors ${
-                activeTab === 'catalog' 
-                  ? 'bg-cuero-cognac text-white shadow-md' 
-                  : 'text-cuero-arena hover:bg-cuero-marfil/10 hover:text-white'
-              }`}
-            >
-              <Package className="w-4 h-4 text-brand-teal" />
-              <span>Catálogo & Stock ({products.length})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('orders')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 transition-colors ${
-                activeTab === 'orders' 
-                  ? 'bg-cuero-cognac text-white shadow-md' 
-                  : 'text-cuero-arena hover:bg-cuero-marfil/10 hover:text-white'
-              }`}
-            >
-              <ShoppingBag className="w-4 h-4 text-brand-teal" />
-              <span>Pedidos ({orders.length})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('promotions')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 transition-colors ${
-                activeTab === 'promotions' 
-                  ? 'bg-cuero-cognac text-white shadow-md' 
-                  : 'text-cuero-arena hover:bg-cuero-marfil/10 hover:text-white'
-              }`}
-            >
-              <Sparkles className="w-4 h-4 text-brand-red" />
-              <span>Promos & Countdown</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('customers')}
-              className={`w-full p-3 rounded-xl flex items-center gap-3 transition-colors ${
-                activeTab === 'customers' 
-                  ? 'bg-cuero-cognac text-white shadow-md' 
-                  : 'text-cuero-arena hover:bg-cuero-marfil/10 hover:text-white'
-              }`}
-            >
-              <Users className="w-4 h-4 text-accent-gold" />
-              <span>Clientes ({summarizeCustomers(orders).length})</span>
-            </button>
+            {NAV_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full p-3 rounded-xl flex items-center gap-3 transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-cuero-cognac text-white shadow-md'
+                    : 'text-cuero-arena hover:bg-cuero-marfil/10 hover:text-white'
+                }`}
+              >
+                <tab.icon className={`w-4 h-4 ${tab.iconColor}`} />
+                <span>{tab.label}</span>
+              </button>
+            ))}
           </nav>
         </div>
 
@@ -282,7 +289,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
           <button
             onClick={handleLogout}
-            className="w-full p-2 rounded-xl text-brand-red/80 hover:text-brand-red hover:bg-brand-red/10 flex items-center justify-center gap-1.5 transition-colors text-[11px]"
+            className="w-full p-2 rounded-xl text-brand-red/80 hover:text-brand-red hover:bg-brand-red/10 transition-colors flex items-center justify-center gap-1.5"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Cerrar Sesión</span>
@@ -292,7 +299,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       </aside>
 
       {/* 2. Main Content Area */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+      <main className="flex-1 min-w-0 p-4 pb-24 sm:p-6 lg:p-8 lg:pb-8 overflow-y-auto overflow-x-hidden">
         <div className="max-w-6xl mx-auto">
           {activeTab === 'stats' && (
             <AdminStats products={products} orders={orders} />
@@ -315,6 +322,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           )}
         </div>
       </main>
+
+      {/* 3. Barra inferior de navegación — solo móvil/tablet (< lg) */}
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 grid grid-cols-5 bg-cuero-espresso border-t border-cuero-cognac/40 shadow-[0_-4px_16px_rgba(0,0,0,0.25)] pb-[env(safe-area-inset-bottom)]">
+        {NAV_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            aria-label={tab.label}
+            aria-current={activeTab === tab.id ? 'page' : undefined}
+            className={`flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-bold transition-colors ${
+              activeTab === tab.id ? 'text-brand-teal' : 'text-cuero-arena/80'
+            }`}
+          >
+            <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-brand-teal' : ''}`} />
+            <span className="truncate max-w-full px-0.5">{tab.short}</span>
+          </button>
+        ))}
+      </nav>
 
     </div>
   );

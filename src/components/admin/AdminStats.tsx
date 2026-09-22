@@ -1,10 +1,10 @@
-import React from 'react';
-import { 
-  TrendingUp, ShoppingBag, Package, Users, 
-  Sparkles, DollarSign, Calendar, ArrowUpRight, ArrowDownRight, Clock 
+import React, { useMemo, useState } from 'react';
+import {
+  TrendingUp, ShoppingBag, Package, Users,
+  Sparkles, DollarSign, Calendar, CalendarRange, ArrowUpRight, ArrowDownRight, Clock
 } from 'lucide-react';
 import { Product, Order } from '../../types';
-import { formatCOP } from '../../utils/promoHelpers';
+import { formatCOP, isPromoActive } from '../../utils/promoHelpers';
 import { summarizeCustomers } from '../../utils/customers';
 
 interface AdminStatsProps {
@@ -14,14 +14,61 @@ interface AdminStatsProps {
 
 const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-/** Ingresos (pedidos no cancelados) de los últimos 7 días, de más antiguo a hoy. */
-function last7DaysRevenue(orders: Order[]) {
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - (6 - i));
-    return { date: d, label: DAY_LABELS[d.getDay()], amount: 0 };
-  });
+type RangePreset = 'today' | 'week' | 'month' | 'custom';
+
+const RANGE_PRESETS: { id: RangePreset; label: string }[] = [
+  { id: 'today', label: 'Hoy' },
+  { id: 'week', label: 'Últimos 7 días' },
+  { id: 'month', label: 'Últimos 30 días' },
+];
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+/** Calcula el rango [inicio, fin] según el filtro elegido por el admin. */
+function resolveRange(preset: RangePreset, customFrom: string, customTo: string): { start: Date; end: Date; label: string } {
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+
+  if (preset === 'today') {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    return { start, end, label: 'Hoy' };
+  }
+  if (preset === 'week') {
+    const start = new Date();
+    start.setDate(start.getDate() - 6);
+    start.setHours(0, 0, 0, 0);
+    return { start, end, label: 'Últimos 7 días' };
+  }
+  if (preset === 'month') {
+    const start = new Date();
+    start.setDate(start.getDate() - 29);
+    start.setHours(0, 0, 0, 0);
+    return { start, end, label: 'Últimos 30 días' };
+  }
+
+  // Rango personalizado: si falta un extremo, se abre hacia atrás/hasta hoy.
+  const start = customFrom ? new Date(`${customFrom}T00:00:00`) : new Date(0);
+  const customEnd = customTo ? new Date(`${customTo}T23:59:59`) : end;
+  return { start, end: customEnd, label: 'Rango personalizado' };
+}
+
+/** Ingresos (pedidos no cancelados) por día dentro de [start, end], ambos incluidos. */
+function revenueByDay(orders: Order[], start: Date, end: Date) {
+  const days: { date: Date; amount: number }[] = [];
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+  const lastDay = new Date(end);
+  lastDay.setHours(0, 0, 0, 0);
+
+  // Tope de 92 barras (~3 meses) para que un rango personalizado muy largo no
+  // vuelva el gráfico ilegible; el total y los KPIs sí cubren el rango completo.
+  let guard = 0;
+  while (cursor.getTime() <= lastDay.getTime() && guard < 92) {
+    days.push({ date: new Date(cursor), amount: 0 });
+    cursor.setDate(cursor.getDate() + 1);
+    guard++;
+  }
 
   for (const order of orders) {
     if (order.status === 'cancelled' || !order.created_at) continue;
@@ -31,9 +78,12 @@ function last7DaysRevenue(orders: Order[]) {
     if (day) day.amount += order.total_amount;
   }
 
+  const useWeekdayLabel = days.length <= 7;
   const max = Math.max(...days.map((d) => d.amount), 1);
   return days.map((d) => ({
-    day: d.label,
+    day: useWeekdayLabel
+      ? DAY_LABELS[d.date.getDay()]
+      : `${String(d.date.getDate()).padStart(2, '0')}/${String(d.date.getMonth() + 1).padStart(2, '0')}`,
     amount: d.amount,
     height: d.amount > 0 ? `${Math.max(6, Math.round((d.amount / max) * 100))}%` : '2%'
   }));
@@ -43,19 +93,37 @@ export const AdminStats: React.FC<AdminStatsProps> = ({
   products,
   orders
 }) => {
-  // Cálculos de KPIs
-  const validOrders = orders.filter((o) => o.status !== 'cancelled');
+  // Filtro de periodo para los KPIs comerciales (no afecta stock/promos: son estado actual)
+  const [rangePreset, setRangePreset] = useState<RangePreset>('week');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+
+  const { start: rangeStart, end: rangeEnd, label: rangeLabel } = useMemo(
+    () => resolveRange(rangePreset, customFrom, customTo),
+    [rangePreset, customFrom, customTo]
+  );
+
+  const ordersInRange = useMemo(() => orders.filter((o) => {
+    if (!o.created_at) return false;
+    const t = new Date(o.created_at).getTime();
+    return t >= rangeStart.getTime() && t <= rangeEnd.getTime();
+  }), [orders, rangeStart, rangeEnd]);
+
+  // Cálculos de KPIs (acotados al periodo elegido)
+  const validOrders = ordersInRange.filter((o) => o.status !== 'cancelled');
   const totalRevenue = validOrders.reduce((acc, order) => acc + order.total_amount, 0);
 
-  const pendingOrders = orders.filter(o => o.status === 'pending').length;
+  const pendingOrders = ordersInRange.filter(o => o.status === 'pending').length;
+  const customersCount = summarizeCustomers(ordersInRange).length;
+  const periodBars = useMemo(() => revenueByDay(validOrders, rangeStart, rangeEnd), [validOrders, rangeStart, rangeEnd]);
+
+  // Estado actual del catálogo: no depende del periodo seleccionado.
   const totalStock = products.reduce((acc, p) => acc + (p.stock || 0), 0);
-  const activePromos = products.filter(p => p.promo_price && p.stock > 0).length;
-  const customersCount = summarizeCustomers(orders).length;
-  const weekBars = last7DaysRevenue(orders);
+  const activePromos = products.filter(p => isPromoActive(p) && p.stock > 0).length;
 
   return (
     <div className="space-y-6">
-      
+
       {/* 1. Header with date */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -71,6 +139,61 @@ export const AdminStats: React.FC<AdminStatsProps> = ({
           <Calendar className="w-3.5 h-3.5 text-cuero-cognac" />
           <span>{new Date().toLocaleDateString('es-CO', { dateStyle: 'long' })}</span>
         </div>
+      </div>
+
+      {/* 1b. Filtro de periodo para las métricas comerciales */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 bg-cuero-marfil rounded-2xl border border-cuero-arena/70">
+        <span className="text-xs font-bold text-cuero-cognac shrink-0">Periodo:</span>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {RANGE_PRESETS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setRangePreset(p.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                rangePreset === p.id
+                  ? 'bg-cuero-espresso text-white shadow-sm'
+                  : 'bg-brand-cream text-cuero-espresso border border-cuero-arena hover:bg-cuero-arena/30'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+          <button
+            onClick={() => setRangePreset('custom')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors ${
+              rangePreset === 'custom'
+                ? 'bg-cuero-espresso text-white shadow-sm'
+                : 'bg-brand-cream text-cuero-espresso border border-cuero-arena hover:bg-cuero-arena/30'
+            }`}
+          >
+            <CalendarRange className="w-3.5 h-3.5" />
+            <span>Fecha personalizada</span>
+          </button>
+        </div>
+
+        {rangePreset === 'custom' && (
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              max={customTo || todayISO()}
+              className="px-2.5 py-1.5 rounded-lg bg-brand-cream border border-cuero-arena text-xs text-cuero-espresso"
+              aria-label="Desde"
+            />
+            <span className="text-cuero-cognac text-xs">a</span>
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+              min={customFrom || undefined}
+              max={todayISO()}
+              className="px-2.5 py-1.5 rounded-lg bg-brand-cream border border-cuero-arena text-xs text-cuero-espresso"
+              aria-label="Hasta"
+            />
+          </div>
+        )}
       </div>
 
       {/* 2. Key Performance Indicators (KPI Cards) */}
@@ -109,7 +232,7 @@ export const AdminStats: React.FC<AdminStatsProps> = ({
           </div>
           <div>
             <span className="font-heading font-extrabold text-2xl text-cuero-espresso tracking-tight">
-              {orders.length}
+              {ordersInRange.length}
             </span>
             <div className="flex items-center gap-1.5 text-[11px] text-cuero-cognac font-semibold mt-1">
               <Clock className="w-3.5 h-3.5 text-accent-gold" />
@@ -169,18 +292,18 @@ export const AdminStats: React.FC<AdminStatsProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-heading font-bold text-base text-cuero-espresso">
-                Tendencia de Ventas (Últimos 7 Días)
+                Tendencia de Ventas ({rangeLabel})
               </h3>
               <p className="text-xs text-cuero-cognac">Ingresos acumulados en COP</p>
             </div>
             <span className="px-2.5 py-1 rounded-lg bg-cuero-arena/30 text-xs font-bold text-cuero-espresso">
-              {formatCOP(weekBars.reduce((acc, b) => acc + b.amount, 0))} en 7 días
+              {formatCOP(totalRevenue)} en el periodo
             </span>
           </div>
 
           {/* Bar Chart Visualization */}
           <div className="h-48 flex items-end justify-between gap-2 pt-6 pb-2 px-2 border-b border-cuero-arena/50">
-            {weekBars.map((bar, idx) => (
+            {periodBars.map((bar, idx) => (
               <div key={idx} className="flex-1 flex flex-col items-center gap-2 group">
                 <div className="relative w-full flex items-end justify-center h-36">
                   {/* Tooltip on hover */}

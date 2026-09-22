@@ -42,8 +42,58 @@ export const AdminCustomers: React.FC<AdminCustomersProps> = ({ orders }) => {
         <Search className="w-4 h-4 text-cuero-cognac absolute left-3 top-1/2 -translate-y-1/2" />
       </div>
 
-      {/* 3. Customers Table */}
-      <div className="bg-cuero-marfil rounded-2xl border border-cuero-arena/70 shadow-xs overflow-hidden">
+      {/* 3a. Customers Cards — solo móvil/tablet (< md) */}
+      <div className="md:hidden space-y-3">
+        {filteredCustomers.map((c) => (
+          <div
+            key={c.phone}
+            className="p-4 bg-cuero-marfil rounded-2xl border border-cuero-arena/70 shadow-xs space-y-3"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <span className="font-bold text-cuero-espresso block text-sm truncate">{c.name}</span>
+                <span className="font-mono text-[11px] text-cuero-cognac">{c.phone}</span>
+              </div>
+              <span className="font-black text-sm text-cuero-espresso shrink-0">{formatCOP(c.totalSpent)}</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div>
+                <span className="text-cuero-cognac font-bold block text-[10px] uppercase">Pedidos</span>
+                <span className="font-semibold text-cuero-espresso">
+                  {c.ordersCount} {c.ordersCount === 1 ? 'pedido' : 'pedidos'}
+                </span>
+              </div>
+              <div>
+                <span className="text-cuero-cognac font-bold block text-[10px] uppercase">Último pedido</span>
+                <span className="text-cuero-espresso">
+                  {c.lastOrderAt ? new Date(c.lastOrderAt).toLocaleDateString('es-CO', { dateStyle: 'medium' }) : '—'}
+                </span>
+              </div>
+            </div>
+
+            <a
+              href={`https://wa.me/${c.phone}?text=${encodeURIComponent(`¡Hola ${c.name}! Te escribimos de Morrales y Algo Más.`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-whatsapp hover:bg-whatsapp-dark text-white font-bold text-xs shadow-sm transition-all"
+            >
+              <MessageCircle className="w-4 h-4 fill-current" />
+              <span>Escribir por WhatsApp</span>
+            </a>
+          </div>
+        ))}
+
+        {filteredCustomers.length === 0 && (
+          <div className="p-10 text-center text-cuero-cognac text-xs space-y-2 bg-cuero-marfil rounded-2xl border border-cuero-arena/70">
+            <Users className="w-8 h-8 mx-auto text-cuero-arena" />
+            <p>{customers.length === 0 ? 'Aún no hay clientes: aparecerán con el primer pedido.' : 'Ningún cliente coincide con la búsqueda.'}</p>
+          </div>
+        )}
+      </div>
+
+      {/* 3b. Customers Table — solo escritorio (md+) */}
+      <div className="hidden md:block bg-cuero-marfil rounded-2xl border border-cuero-arena/70 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-cuero-espresso">
             <thead className="bg-cuero-espresso text-cuero-marfil uppercase text-[10px] tracking-wider font-bold">

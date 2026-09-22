@@ -2,6 +2,28 @@
 // promoHelpers.ts — Formateo COP y Helpers de Promociones
 // ==========================================
 
+import { Product } from '../types';
+
+/**
+ * Única fuente de verdad de "¿esta promoción sigue vigente?": promo_price
+ * existe y, si tiene promo_end_date, esa fecha todavía no pasó. Sin fecha
+ * límite, la promo se considera vigente mientras tenga promo_price (igual
+ * que documenta el campo: countdown opcional, precio siempre visible).
+ * Úsala en vez de comparar `product.promo_price` a secas — así un producto
+ * con una oferta vencida deja de cobrarse, filtrarse y mostrarse como oferta
+ * en toda la tienda a la vez.
+ */
+export function isPromoActive(product: Pick<Product, 'promo_price' | 'promo_end_date'>): boolean {
+  if (!product.promo_price) return false;
+  if (!product.promo_end_date) return true;
+  return new Date(product.promo_end_date).getTime() > Date.now();
+}
+
+/** Precio que realmente se cobra: el promocional solo si sigue vigente, si no el base. */
+export function getEffectivePrice(product: Pick<Product, 'price' | 'promo_price' | 'promo_end_date'>): string {
+  return isPromoActive(product) ? (product.promo_price as string) : product.price;
+}
+
 /**
  * Convierte un string de precio con formato COP ("$189.900" o "$ 189.900 COP") a número entero (189900)
  */

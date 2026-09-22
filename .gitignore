@@ -23,3 +23,6 @@ skills-lock.json
 # Documentos internos del proyecto (contrato y referencias a otros proyectos)
 arquitectura_morrales_y_algo_mas.md
 diseno_ui_ux_morrales_y_algo_mas.md
+
+.vercel
+.env*

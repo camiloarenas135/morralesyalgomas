@@ -7,6 +7,7 @@ import { Footer } from './components/Footer';
 import { AdminPanel } from './components/admin/AdminPanel';
 import { Product, ProductVariant, OrderCartItem, Category, Order } from './types';
 import { StoreManager } from './lib/supabase';
+import { getEffectivePrice } from './utils/promoHelpers';
 import { Check, ShoppingBag } from 'lucide-react';
 
 // Lightweight SPA Route Hook
@@ -119,7 +120,7 @@ export function App() {
   const handleAddToCart = (product: Product, selectedVariant?: ProductVariant, quantity: number = 1) => {
     const variantId = selectedVariant ? `-${selectedVariant.name.replace(/\s+/g, '')}` : '';
     const cartItemId = `${product.id}${variantId}`;
-    const effectivePrice = product.promo_price || product.price;
+    const effectivePrice = getEffectivePrice(product);
 
     setCartItems((prevItems) => {
       const existingIndex = prevItems.findIndex((item) => item.id === cartItemId);

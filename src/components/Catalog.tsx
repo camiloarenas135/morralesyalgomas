@@ -5,7 +5,7 @@ import {
   Layers, Ruler, Weight, ShieldAlert, Heart, Share2, Info, Flame, MessageCircle
 } from 'lucide-react';
 import { Product, ProductVariant, Category } from '../types';
-import { calculateDiscountPercent, parseCOP, formatCOP } from '../utils/promoHelpers';
+import { calculateDiscountPercent, parseCOP, formatCOP, isPromoActive, getEffectivePrice } from '../utils/promoHelpers';
 import { WHATSAPP_NUMBER } from '../config';
 
 interface CatalogProps {
@@ -35,6 +35,14 @@ export const Catalog: React.FC<CatalogProps> = ({
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | undefined>(undefined);
   const [modalQuantity, setModalQuantity] = useState(1);
   const [showCareGuide, setShowCareGuide] = useState(false);
+
+  // Si la variante elegida tiene foto propia, se muestra primero; el resto de
+  // fotos del producto queda disponible en las miniaturas igual.
+  const galleryImages = selectedProduct
+    ? selectedVariant?.image
+      ? [selectedVariant.image, ...selectedProduct.images.filter((img) => img !== selectedVariant.image)]
+      : selectedProduct.images
+    : [];
 
   // Estados de Filtros Avanzados
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
@@ -70,8 +78,8 @@ export const Catalog: React.FC<CatalogProps> = ({
         return false;
       }
 
-      // Filtro solo promos
-      if (activePromoFilter && !p.promo_price) {
+      // Filtro solo promos vigentes
+      if (activePromoFilter && !isPromoActive(p)) {
         return false;
       }
 
@@ -86,15 +94,15 @@ export const Catalog: React.FC<CatalogProps> = ({
       }
 
       // Filtro por precio máximo
-      const effectivePrice = p.promo_price ? parseCOP(p.promo_price) : parseCOP(p.price);
+      const effectivePrice = parseCOP(getEffectivePrice(p));
       if (effectivePrice > maxPriceFilter) {
         return false;
       }
 
       return true;
     }).sort((a, b) => {
-      const priceA = a.promo_price ? parseCOP(a.promo_price) : parseCOP(a.price);
-      const priceB = b.promo_price ? parseCOP(b.promo_price) : parseCOP(b.price);
+      const priceA = parseCOP(getEffectivePrice(a));
+      const priceB = parseCOP(getEffectivePrice(b));
 
       if (sortBy === 'price-asc') return priceA - priceB;
       if (sortBy === 'price-desc') return priceB - priceA;
@@ -312,7 +320,8 @@ export const Catalog: React.FC<CatalogProps> = ({
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {filteredProducts.map((product) => {
-            const discountPct = calculateDiscountPercent(product.price, product.promo_price);
+            const hasActivePromo = isPromoActive(product);
+            const discountPct = hasActivePromo ? calculateDiscountPercent(product.price, product.promo_price) : 0;
 
             return (
               <div
@@ -408,7 +417,7 @@ export const Catalog: React.FC<CatalogProps> = ({
                   {/* Pricing and Action */}
                   <div className="pt-2 flex items-baseline justify-between gap-2 border-t border-cuero-arena/40">
                     <div className="flex flex-col">
-                      {product.promo_price ? (
+                      {hasActivePromo ? (
                         <>
                           <span className="text-[11px] text-gray-400 line-through">
                             {product.price}
@@ -465,7 +474,7 @@ export const Catalog: React.FC<CatalogProps> = ({
               {/* Main Photo with Badges */}
               <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-cuero-arena/20 border border-cuero-arena/40 shadow-inner">
                 <img
-                  src={selectedProduct.images[activeImageIndex] || selectedProduct.images[0]}
+                  src={galleryImages[activeImageIndex] || galleryImages[0]}
                   alt={selectedProduct.name}
                   className="w-full h-full object-cover object-center"
                 />
@@ -478,9 +487,9 @@ export const Catalog: React.FC<CatalogProps> = ({
               </div>
 
               {/* Thumbnails row */}
-              {selectedProduct.images.length > 1 && (
+              {galleryImages.length > 1 && (
                 <div className="flex gap-3 overflow-x-auto pb-1">
-                  {selectedProduct.images.map((img, idx) => (
+                  {galleryImages.map((img, idx) => (
                     <button
                       key={idx}
                       onClick={() => setActiveImageIndex(idx)}
@@ -514,7 +523,7 @@ export const Catalog: React.FC<CatalogProps> = ({
 
                 {/* Pricing */}
                 <div className="flex items-baseline gap-3">
-                  {selectedProduct.promo_price ? (
+                  {isPromoActive(selectedProduct) ? (
                     <>
                       <span className="text-2xl sm:text-3xl font-black text-brand-red">
                         {selectedProduct.promo_price}
@@ -550,7 +559,7 @@ export const Catalog: React.FC<CatalogProps> = ({
                         return (
                           <button
                             key={idx}
-                            onClick={() => setSelectedVariant(variant)}
+                            onClick={() => { setSelectedVariant(variant); setActiveImageIndex(0); }}
                             className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border transition-all cursor-pointer ${
                               isSelected
                                 ? 'bg-cuero-espresso text-white border-cuero-espresso shadow-md ring-2 ring-cuero-cognac/30'
@@ -657,7 +666,7 @@ export const Catalog: React.FC<CatalogProps> = ({
                     className="flex-1 min-h-11 py-3 px-5 rounded-xl bg-cuero-espresso hover:bg-cuero-cognac text-white font-bold text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 active:scale-95"
                   >
                     <ShoppingBag className="w-4 h-4 text-brand-teal" />
-                    <span>Agregar al Carrito • {selectedProduct.promo_price || selectedProduct.price}</span>
+                    <span>Agregar al Carrito • {getEffectivePrice(selectedProduct)}</span>
                   </button>
                 </div>
 
@@ -665,7 +674,7 @@ export const Catalog: React.FC<CatalogProps> = ({
                 <button
                   onClick={() => {
                     const variantText = selectedVariant ? ` (Variante: ${selectedVariant.name})` : '';
-                    const message = `Hola, me interesa comprar directamente: *${selectedProduct.name}*${variantText} x ${modalQuantity} unidad(es) por valor de *${selectedProduct.promo_price || selectedProduct.price}*. ¿Tienen disponibilidad inmediata para despacho?`;
+                    const message = `Hola, me interesa comprar directamente: *${selectedProduct.name}*${variantText} x ${modalQuantity} unidad(es) por valor de *${getEffectivePrice(selectedProduct)}*. ¿Tienen disponibilidad inmediata para despacho?`;
                     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
                   }}
                   disabled={!WHATSAPP_NUMBER}
