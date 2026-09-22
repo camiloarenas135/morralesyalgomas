@@ -9,6 +9,7 @@ import { StoreManager } from '../../lib/supabase';
 import { formatCOP, parseCOP, isPromoActive } from '../../utils/promoHelpers';
 import { sanitizeInput } from '../../utils/sanitize';
 import { ErrorBanner, errorMessage } from './ErrorBanner';
+import { ImageCropModal } from './ImageCropModal';
 
 interface AdminCatalogProps {
   products: Product[];
@@ -56,6 +57,13 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  // Cola de recorte: se llena al elegir archivo(s) y se procesa uno a la vez
+  // con ImageCropModal antes de subir cada foto (producto o variante).
+  const [cropQueue, setCropQueue] = useState<File[]>([]);
+  const [cropBatchTotal, setCropBatchTotal] = useState(0);
+  const [cropTarget, setCropTarget] = useState<'gallery' | 'variant' | null>(null);
+  const [cropVariantIdx, setCropVariantIdx] = useState<number | null>(null);
+
   // Errores de guardado / borrado
   const [actionError, setActionError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -64,31 +72,50 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
     return StoreManager.uploadProductImage(file);
   };
 
-  // Sube una o varias fotos y las agrega a la galería del producto (no reemplazan las existentes).
-  const handleAddImagesFromDevice = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // El input de archivo solo encola: la subida real ocurre tras recortar cada foto.
+  const handleAddImagesFromDevice = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     e.target.value = ''; // permite volver a elegir el mismo archivo más tarde
     if (files.length === 0) return;
-
-    setIsUploadingImages(true);
     setUploadError(null);
-    try {
-      const uploaded: string[] = [];
-      for (const file of files) {
-        const url = await uploadFile(file);
-        if (url) uploaded.push(url);
-      }
-      if (uploaded.length > 0) {
-        setImages((prev) => [...prev, ...uploaded]);
-      }
-      if (uploaded.length < files.length) {
-        setUploadError(`${files.length - uploaded.length} de ${files.length} foto(s) no se pudieron subir.`);
-      }
-    } catch (err) {
-      setUploadError('Error al subir imágenes a Supabase.');
-    } finally {
-      setIsUploadingImages(false);
+    setCropTarget('gallery');
+    setCropVariantIdx(null);
+    setCropBatchTotal(files.length);
+    setCropQueue(files);
+  };
+
+  /** Avanza la cola de recorte (éxito u "omitir"); si era la última, la cierra. */
+  const advanceCropQueue = () => {
+    const wasLast = cropQueue.length <= 1;
+    setCropQueue((prev) => prev.slice(1));
+    if (wasLast) {
+      setCropTarget(null);
+      setCropVariantIdx(null);
+      setCropBatchTotal(0);
     }
+  };
+
+  const handleCropConfirm = async (croppedFile: File) => {
+    if (cropTarget === 'gallery') {
+      setIsUploadingImages(true);
+      try {
+        const url = await uploadFile(croppedFile);
+        if (!url) throw new Error('No se pudo subir la foto al almacenamiento.');
+        setImages((prev) => [...prev, url]);
+      } finally {
+        setIsUploadingImages(false);
+      }
+    } else if (cropTarget === 'variant' && cropVariantIdx !== null) {
+      setUploadingVariantIdx(cropVariantIdx);
+      try {
+        const url = await uploadFile(croppedFile);
+        if (!url) throw new Error('No se pudo subir la foto de la variante.');
+        setVariants((prev) => prev.map((v, i) => (i === cropVariantIdx ? { ...v, image: url } : v)));
+      } finally {
+        setUploadingVariantIdx(null);
+      }
+    }
+    advanceCropQueue();
   };
 
   const handleAddImageUrl = () => {
@@ -113,22 +140,13 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
   };
 
   // Foto propia de una variante (ej: el mismo bolso en otro color). Si no tiene,
-  // la tienda usa la foto principal del producto.
-  const handleVariantImageUpload = async (idx: number, file: File) => {
-    setUploadingVariantIdx(idx);
+  // la tienda usa la foto principal del producto. También pasa por el recorte.
+  const handleVariantFileSelected = (idx: number, file: File) => {
     setUploadError(null);
-    try {
-      const url = await uploadFile(file);
-      if (url) {
-        setVariants((prev) => prev.map((v, i) => (i === idx ? { ...v, image: url } : v)));
-      } else {
-        setUploadError('No se pudo subir la foto de la variante.');
-      }
-    } catch (err) {
-      setUploadError('Error al subir la foto de la variante.');
-    } finally {
-      setUploadingVariantIdx(null);
-    }
+    setCropTarget('variant');
+    setCropVariantIdx(idx);
+    setCropBatchTotal(1);
+    setCropQueue([file]);
   };
 
   const handleRemoveVariantImage = (idx: number) => {
@@ -813,7 +831,7 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               e.target.value = '';
-                              if (file) handleVariantImageUpload(idx, file);
+                              if (file) handleVariantFileSelected(idx, file);
                             }}
                           />
                         </label>
@@ -868,6 +886,23 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
 
           </div>
         </div>
+      )}
+
+      {/* 5. Recorte de foto antes de subir — cuadrado (1:1), igual a como se ve en toda la tienda */}
+      {cropQueue.length > 0 && cropQueue[0] && (
+        <ImageCropModal
+          key={`${cropQueue[0].name}-${cropQueue[0].lastModified}-${cropBatchTotal - cropQueue.length}`}
+          file={cropQueue[0]}
+          aspect={1}
+          hint={
+            cropTarget === 'variant'
+              ? 'Foto de la variante — se recorta cuadrada (1:1), igual que la foto principal.'
+              : 'Foto de producto — se recorta cuadrada (1:1), igual a como se ve en la tienda.'
+          }
+          progressLabel={cropBatchTotal > 1 ? `Foto ${cropBatchTotal - cropQueue.length + 1} de ${cropBatchTotal}` : undefined}
+          onCancel={advanceCropQueue}
+          onConfirm={handleCropConfirm}
+        />
       )}
 
     </div>
