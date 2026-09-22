@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Plus, Search, Edit2, Trash2, X, Image as ImageIcon,
   Layers, Check, AlertCircle, Sparkles, HandMetal, Package,
-  Upload, Loader2, Star, Link as LinkIcon
+  Upload, Loader2, Star, Link as LinkIcon, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Product, ProductVariant, Category } from '../../types';
 import { StoreManager } from '../../lib/supabase';
@@ -17,6 +17,21 @@ interface AdminCatalogProps {
   onRefresh: () => void;
 }
 
+const PRODUCTS_PER_PAGE = 20;
+
+/** Números de página a mostrar, con "…" para rangos largos (ej: 1 … 4 5 6 … 12). */
+function getPageNumbers(current: number, total: number): (number | 'ellipsis')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | 'ellipsis')[] = [1];
+  if (current > 3) pages.push('ellipsis');
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  for (let p = start; p <= end; p++) pages.push(p);
+  if (current < total - 2) pages.push('ellipsis');
+  pages.push(total);
+  return pages;
+}
+
 export const AdminCatalog: React.FC<AdminCatalogProps> = ({
   products,
   categories,
@@ -24,6 +39,7 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCatFilter, setSelectedCatFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -275,11 +291,23 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
 
   // Filtered list
   const filteredProducts = products.filter((p) => {
-    const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const matchSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         p.sku?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchCat = selectedCatFilter === 'all' || p.category === selectedCatFilter;
     return matchSearch && matchCat;
   });
+
+  // Si cambia la búsqueda/categoría (o la lista se encoge), vuelve a la página 1.
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE));
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCatFilter]);
+  useEffect(() => {
+    setCurrentPage((p) => Math.min(p, totalPages));
+  }, [totalPages]);
+
+  const pageStart = (currentPage - 1) * PRODUCTS_PER_PAGE;
+  const paginatedProducts = filteredProducts.slice(pageStart, pageStart + PRODUCTS_PER_PAGE);
 
   return (
     <div className="space-y-6">
@@ -335,7 +363,7 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
 
       {/* 3a. Products Cards — solo móvil/tablet (< md) */}
       <div className="md:hidden space-y-3">
-        {filteredProducts.map((prod) => (
+        {paginatedProducts.map((prod) => (
           <div
             key={prod.id}
             className="p-4 bg-cuero-marfil rounded-2xl border border-cuero-arena/70 shadow-xs space-y-3"
@@ -424,7 +452,7 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-cuero-arena/40">
-              {filteredProducts.map((prod) => (
+              {paginatedProducts.map((prod) => (
                 <tr key={prod.id} className="hover:bg-brand-cream/60 transition-colors">
                   <td className="p-3.5">
                     <div className="w-12 h-12 rounded-xl overflow-hidden bg-cuero-arena/30 border border-cuero-arena/50 shrink-0">
@@ -488,8 +516,66 @@ export const AdminCatalog: React.FC<AdminCatalogProps> = ({
               ))}
             </tbody>
           </table>
+
+          {filteredProducts.length === 0 && (
+            <div className="p-10 text-center text-cuero-cognac text-xs space-y-2">
+              <Package className="w-8 h-8 mx-auto text-cuero-arena" />
+              <p>Ningún producto coincide con la búsqueda o el filtro.</p>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* 3c. Paginado — compartido entre la vista móvil y la de escritorio */}
+      {filteredProducts.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-[11px] text-cuero-cognac">
+            Mostrando <strong className="text-cuero-espresso">{pageStart + 1}–{Math.min(pageStart + PRODUCTS_PER_PAGE, filteredProducts.length)}</strong> de{' '}
+            <strong className="text-cuero-espresso">{filteredProducts.length}</strong> {filteredProducts.length === 1 ? 'producto' : 'productos'}
+          </p>
+
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1.5 flex-wrap justify-center">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-xl bg-cuero-marfil border border-cuero-arena text-cuero-espresso disabled:opacity-40 disabled:cursor-not-allowed hover:bg-cuero-arena/30 transition-colors"
+                aria-label="Página anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {getPageNumbers(currentPage, totalPages).map((p, idx) =>
+                p === 'ellipsis' ? (
+                  <span key={`ellipsis-${idx}`} className="px-1.5 text-cuero-cognac text-xs select-none">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setCurrentPage(p)}
+                    aria-current={currentPage === p ? 'page' : undefined}
+                    className={`min-w-9 px-2.5 py-2 rounded-xl text-xs font-bold transition-colors ${
+                      currentPage === p
+                        ? 'bg-cuero-espresso text-white shadow-sm'
+                        : 'bg-cuero-marfil border border-cuero-arena text-cuero-espresso hover:bg-cuero-arena/30'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-xl bg-cuero-marfil border border-cuero-arena text-cuero-espresso disabled:opacity-40 disabled:cursor-not-allowed hover:bg-cuero-arena/30 transition-colors"
+                aria-label="Página siguiente"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 4. Create / Edit Modal */}
       {isModalOpen && (
