@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { Check, X, ZoomIn } from 'lucide-react';
+import { cropImageToFile } from '../../utils/imageOptimizer';
 
 interface ImageCropModalProps {
   file: File;
@@ -13,37 +14,6 @@ interface ImageCropModalProps {
   onCancel: () => void;
   /** Debe subir/guardar el archivo recortado; si falla, lánzalo para que el modal muestre el error y no avance. */
   onConfirm: (croppedFile: File) => Promise<void>;
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('No se pudo leer la imagen.'));
-    img.src = src;
-  });
-}
-
-async function cropToFile(imageSrc: string, area: Area, fileName: string): Promise<File> {
-  const image = await loadImage(imageSrc);
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(area.width));
-  canvas.height = Math.max(1, Math.round(area.height));
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('No se pudo preparar el lienzo de recorte.');
-
-  ctx.drawImage(
-    image,
-    area.x, area.y, area.width, area.height,
-    0, 0, canvas.width, canvas.height
-  );
-
-  const blob: Blob = await new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('No se pudo generar el recorte.'))), 'image/png')
-  );
-
-  const baseName = fileName.replace(/\.[^./]+$/, '') || 'foto';
-  return new File([blob], `${baseName}-recorte.png`, { type: 'image/png' });
 }
 
 /** Recorte interactivo (arrastrar + zoom) antes de subir, tipo redes sociales. */
@@ -73,7 +43,7 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
     setIsProcessing(true);
     setError(null);
     try {
-      const cropped = await cropToFile(imageSrc, croppedAreaPixels, file.name);
+      const cropped = await cropImageToFile(imageSrc, croppedAreaPixels, file.name);
       await onConfirm(cropped);
       // Si onConfirm no lanzó error, el padre se encarga de cerrar/avanzar este modal.
     } catch (err) {

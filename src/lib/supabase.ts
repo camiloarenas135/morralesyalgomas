@@ -6,7 +6,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Product, Order, Category } from '../types';
 import { INITIAL_PRODUCTS, INITIAL_ORDERS, MOCK_CATEGORIES } from '../data/mockProducts';
-import { toWebP } from '../utils/imageOptimizer';
+import { optimizeImage, MAX_UPLOAD_BYTES } from '../utils/imageOptimizer';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -388,33 +388,50 @@ export class StoreManager {
   // SUBIDA DE ARCHIVOS A SUPABASE STORAGE (solo administrador)
   // ------------------------------------------
 
+  /**
+   * Sube una foto de producto. Devuelve null solo si Supabase no está
+   * configurado; cualquier otra falla lanza un Error con un mensaje legible
+   * para que la interfaz muestre el motivo real (antes todo terminaba en un
+   * genérico "No se pudo subir la foto").
+   */
   static async uploadProductImage(file: File): Promise<string | null> {
     if (!supabase) {
       console.warn('Supabase no está configurado para subir imágenes.');
       return null;
     }
 
-    try {
-      // Se convierte a WebP (y se limita el tamaño) en el navegador antes de
-      // subir, para que las fotos de producto no pesen varios MB cada una.
-      const optimized = await toWebP(file);
-      const ext = (optimized.name.split('.').pop() || 'jpg').toLowerCase();
-      const filePath = `products/product-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
+    // Se reduce y comprime en el navegador antes de subir (WebP, o JPEG en
+    // Safari/iPhone que no codifica WebP) para no pasar el límite del bucket.
+    const optimized = await optimizeImage(file);
 
-      const { error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(filePath, optimized, { cacheControl: '3600', upsert: false, contentType: optimized.type });
-
-      if (uploadError) {
-        console.error('Error uploading image to Supabase Storage:', uploadError);
-        return null;
-      }
-
-      return supabase.storage.from('product-images').getPublicUrl(filePath).data.publicUrl;
-    } catch (e) {
-      console.error('Unexpected error uploading image:', e);
-      return null;
+    if (optimized.size > MAX_UPLOAD_BYTES) {
+      const mb = (optimized.size / (1024 * 1024)).toFixed(1);
+      throw new Error(`La foto pesa ${mb} MB y el máximo es 5 MB. Prueba con otra foto o recórtala más.`);
     }
+
+    const ext = (optimized.name.split('.').pop() || 'jpg').toLowerCase();
+    const filePath = `products/product-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('product-images')
+      .upload(filePath, optimized, { cacheControl: '3600', upsert: false, contentType: optimized.type });
+
+    if (uploadError) {
+      console.error('Error uploading image to Supabase Storage:', uploadError);
+      const msg = uploadError.message || '';
+      if (/exceed|too large|size/i.test(msg)) {
+        throw new Error('La foto supera el tamaño máximo permitido (5 MB).');
+      }
+      if (/mime|type/i.test(msg)) {
+        throw new Error('Formato de imagen no permitido. Usa JPG, PNG o WebP.');
+      }
+      if (/row-level security|policy|unauthorized|jwt/i.test(msg)) {
+        throw new Error('Tu sesión expiró o no tiene permisos. Vuelve a iniciar sesión.');
+      }
+      throw new Error(`No se pudo subir la foto: ${msg || 'error desconocido'}`);
+    }
+
+    return supabase.storage.from('product-images').getPublicUrl(filePath).data.publicUrl;
   }
 
   /** Restaura los datos de ejemplo (solo modo demo sin Supabase). */
